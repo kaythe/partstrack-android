@@ -16,7 +16,7 @@
       You should have received a copy of the GNU General Public License
       along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">partstrack</string>
     <string name="back">Back</string>
     <string name="show">Show</string>
@@ -71,4 +71,37 @@
     <string name="no_parts_match">No parts match.</string>
     <string name="clear_filters">Clear search and filters</string>
     <string name="low">low</string>
+
+    <!-- Part -->
+    <string name="more">More</string>
+    <string name="close">Close</string>
+    <string name="open_in_web_interface">Open in web interface</string>
+    <string name="no_app_to_open">No app on this phone can open this.</string>
+    <string name="in_stock">%1$d in stock</string>
+    <string name="minimum">minimum %1$d</string>
+    <string name="minimum_low">below the minimum of %1$d</string>
+    <string name="field_manufacturer">Manufacturer</string>
+    <string name="field_mpn">MPN</string>
+    <string name="field_category">Category</string>
+    <string name="field_package">Package</string>
+    <string name="section_stock">Stock</string>
+    <string name="section_attributes">Attributes</string>
+    <string name="section_pictures">Pictures</string>
+    <string name="section_files">Datasheets and files</string>
+    <string name="section_notes">Notes</string>
+    <string name="section_history">Recent changes</string>
+    <string name="no_stock">Not stored anywhere.</string>
+    <string name="kind_datasheet">Datasheet</string>
+    <string name="kind_file">File</string>
+    <string name="kind_link">Link</string>
+    <string name="kind_datasheet_link">Datasheet, link</string>
+    <string name="history_unavailable">Couldn\'t load the history.</string>
+    <string name="history_empty">No changes yet.</string>
+    <string name="history_set">Set to %1$d at %2$s</string>
+    <string name="history_initial">Started with %1$d at %2$s</string>
+    <string name="history_added">Added %1$d at %2$s</string>
+    <!-- No noun follows the numbers, so there is nothing to put in the plural. -->
+    <string name="history_taken" tools:ignore="PluralsCandidate">Took %1$d from %2$s</string>
+    <string name="history_moved_in">Moved %1$d to %2$s</string>
+    <string name="history_moved_out" tools:ignore="PluralsCandidate">Moved %1$d away from %2$s</string>
 </resources>

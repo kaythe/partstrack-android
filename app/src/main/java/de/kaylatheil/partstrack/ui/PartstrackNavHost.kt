@@ -27,6 +27,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
+import de.kaylatheil.partstrack.ui.part.PartScreen
+import de.kaylatheil.partstrack.ui.part.PartViewModel
 import de.kaylatheil.partstrack.ui.parts.PartsScreen
 import de.kaylatheil.partstrack.ui.parts.PartsViewModel
 import de.kaylatheil.partstrack.ui.setup.SetupScreen
@@ -35,6 +37,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 object PartsRoute
+
+@Serializable
+data class PartRoute(val id: Int)
 
 /** Setup on [firstStart] (nothing to go back to), otherwise the settings. */
 @Serializable
@@ -65,6 +70,16 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
             PartsScreen(
                 viewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) },
                 onOpenSettings = { navController.navigate(SetupRoute()) },
+                onOpenPart = { navController.navigate(PartRoute(it)) },
+            )
+        }
+        composable<PartRoute> { entry ->
+            val id = entry.toRoute<PartRoute>().id
+            PartScreen(
+                viewModel = viewModel {
+                    PartViewModel(id, container.settingsStore.settings, container.apiFactory, container.attachmentDownloader)
+                },
+                onBack = { navController.popBackStack() },
             )
         }
     }

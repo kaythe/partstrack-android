@@ -18,6 +18,7 @@
 
 package de.kaylatheil.partstrack.ui.parts
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +84,7 @@ import de.kaylatheil.partstrack.ui.common.message
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 
 @Composable
-fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit) {
+fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPart: (Int) -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
@@ -102,6 +103,7 @@ fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit) {
             onRetry = viewModel::retry,
             onErrorShown = viewModel::onErrorShown,
             onOpenSettings = onOpenSettings,
+            onOpenPart = onOpenPart,
         ),
     )
 }
@@ -118,6 +120,7 @@ class PartsActions(
     val onRetry: () -> Unit = {},
     val onErrorShown: () -> Unit = {},
     val onOpenSettings: () -> Unit = {},
+    val onOpenPart: (Int) -> Unit = {},
 )
 
 /** The screen without its ViewModel, for previews and UI tests. */
@@ -167,7 +170,7 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
                             CircularProgressIndicator(Modifier.testTag("loading"))
                         }
                     state.parts.isEmpty() -> NoParts(state.filter.isEmpty, actions.onClearFilters)
-                    else -> PartList(state.parts)
+                    else -> PartList(state.parts, actions.onOpenPart)
                 }
             }
         }
@@ -298,17 +301,17 @@ private fun NoParts(noFilters: Boolean, onClearFilters: () -> Unit) {
 }
 
 @Composable
-private fun PartList(parts: List<Part>) {
+private fun PartList(parts: List<Part>, onOpenPart: (Int) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().testTag("parts")) {
         items(parts, key = { it.id }) { part ->
-            PartRow(part)
+            PartRow(part, onClick = { onOpenPart(part.id) })
             HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun PartRow(part: Part) {
+private fun PartRow(part: Part, onClick: () -> Unit) {
     val detail = part.description.ifBlank { part.packageName }
     val quantityColor = if (part.low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     ListItem(
@@ -326,6 +329,7 @@ private fun PartRow(part: Part) {
                 }
             }
         },
+        modifier = Modifier.clickable(onClick = onClick),
     )
 }
 

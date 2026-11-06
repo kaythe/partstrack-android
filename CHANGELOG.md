@@ -23,3 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sublocations), tag and category, and pull to refresh. Low stock shows in
   red. The list reloads when the app comes back into view, and says what is
   wrong when the server can't be reached.
+- A part's page: description, stock in total and per location, minimum,
+  manufacturer, MPN, category, package, tags, attributes, notes and the
+  latest ten stock changes. Pictures show as thumbnails and full size (with
+  pinch to zoom); datasheets and other files stored on the server open in
+  the app that handles them, links in the browser. The menu opens the part
+  in the web interface.

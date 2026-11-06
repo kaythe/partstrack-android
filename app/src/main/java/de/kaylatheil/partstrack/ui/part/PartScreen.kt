@@ -1,0 +1,465 @@
+/*
+ * partstrack - a small inventory for electronic parts
+ * Copyright (C) 2026 Kayla Theil (accounts@kaylatheil.de)
+ *
+ *     This program is free software: you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation, either version 3 of the License, or
+ *     (at your option) any later version.
+ *
+ *     This program is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ *     You should have received a copy of the GNU General Public License
+ *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package de.kaylatheil.partstrack.ui.part
+
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import de.kaylatheil.partstrack.R
+import de.kaylatheil.partstrack.data.api.Attachment
+import de.kaylatheil.partstrack.data.api.AttachmentKind
+import de.kaylatheil.partstrack.data.api.Part
+import de.kaylatheil.partstrack.data.api.StockChange
+import de.kaylatheil.partstrack.data.api.parseServerTime
+import de.kaylatheil.partstrack.ui.common.ErrorView
+import de.kaylatheil.partstrack.ui.common.message
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlinx.coroutines.launch
+
+@Composable
+fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val noApp = stringResource(R.string.no_app_to_open)
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(state.open) {
+        val request = state.open ?: return@LaunchedEffect
+        viewModel.onOpened()
+        if (!openElsewhere(context, request)) scope.launch { snackbar.showSnackbar(noApp) }
+    }
+    PartContent(
+        state = state,
+        snackbar = snackbar,
+        actions = PartActions(
+            onBack = onBack,
+            onRetry = viewModel::retry,
+            onOpenAttachment = viewModel::open,
+            onOpenInWebInterface = viewModel::openInWebInterface,
+            onErrorShown = viewModel::onErrorShown,
+        ),
+    )
+}
+
+/** Starts the app that shows [request]; false if there is none. */
+private fun openElsewhere(context: Context, request: OpenRequest): Boolean {
+    fun start(intent: Intent): Boolean =
+        try {
+            context.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        }
+
+    fun browse(url: String) = start(Intent(Intent.ACTION_VIEW, url.toUri()))
+    return when (request) {
+        is OpenRequest.Link -> browse(request.url)
+        is OpenRequest.File -> {
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", request.file.file)
+            val intent = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, request.file.mediaType)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // No app for the type: the browser may still show or save it.
+            start(intent) || browse(request.fallbackUrl)
+        }
+    }
+}
+
+class PartActions(
+    val onBack: () -> Unit = {},
+    val onRetry: () -> Unit = {},
+    val onOpenAttachment: (Attachment) -> Unit = {},
+    val onOpenInWebInterface: () -> Unit = {},
+    val onErrorShown: () -> Unit = {},
+)
+
+/** The screen without its ViewModel, for UI tests. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHostState = remember { SnackbarHostState() }) {
+    val part = state.part
+    val passingError = (state.error?.takeIf { part != null } ?: state.downloadError)?.message()
+    LaunchedEffect(passingError) {
+        if (passingError != null) {
+            snackbar.showSnackbar(passingError)
+            actions.onErrorShown()
+        }
+    }
+    var fullSize by remember { mutableStateOf<Attachment?>(null) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(part?.name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = {
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = { if (part != null) MoreMenu(actions) },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = state.loading && part != null,
+            onRefresh = actions.onRetry,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            when {
+                part != null -> PartDetails(part, state, actions, onShowPicture = { fullSize = it })
+                state.error != null -> ErrorView(state.error, actions.onRetry, Modifier.fillMaxSize())
+                else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.testTag("loading"))
+                }
+            }
+        }
+    }
+    fullSize?.let { FullSizePicture(it, onClose = { fullSize = null }) }
+}
+
+@Composable
+private fun MoreMenu(actions: PartActions) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.open_in_web_interface)) },
+                onClick = { open = false; actions.onOpenInWebInterface() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PartDetails(part: Part, state: PartUiState, actions: PartActions, onShowPicture: (Attachment) -> Unit) {
+    val pictures = part.attachments.filter { it.isImage }
+    val files = part.attachments.filterNot { it.isImage }
+        .sortedBy { if (it.kind == AttachmentKind.DATASHEET.value) 0 else 1 }
+    LazyColumn(Modifier.fillMaxSize().testTag("part"), contentPadding = PaddingValues(bottom = 24.dp)) {
+        item { Overview(part) }
+        if (part.tags.isNotEmpty()) item { Tags(part.tags) }
+
+        section(R.string.section_stock)
+        if (part.stock.isEmpty()) {
+            item { Hint(stringResource(R.string.no_stock)) }
+        } else {
+            items(part.stock, key = { "stock " + it.location }) { entry ->
+                ListItem(
+                    headlineContent = { Text(entry.location) },
+                    trailingContent = { Text(entry.quantity.toString(), style = MaterialTheme.typography.titleMedium) },
+                )
+            }
+        }
+
+        if (part.attributes.isNotEmpty()) {
+            section(R.string.section_attributes)
+            items(part.attributes.entries.toList(), key = { "attribute " + it.key }) { (key, value) ->
+                Field(key, value)
+            }
+        }
+
+        if (pictures.isNotEmpty()) {
+            section(R.string.section_pictures)
+            item { Pictures(pictures, onShowPicture) }
+        }
+
+        if (files.isNotEmpty()) {
+            section(R.string.section_files)
+            items(files, key = { "file " + it.id }) { file ->
+                FileRow(file, downloading = state.downloadingId == file.id, onOpen = { actions.onOpenAttachment(file) })
+            }
+        }
+
+        if (part.notes.isNotBlank()) {
+            section(R.string.section_notes)
+            item { Text(part.notes, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium) }
+        }
+
+        section(R.string.section_history)
+        val history = state.history
+        when {
+            history == null -> item { Hint(stringResource(R.string.history_unavailable)) }
+            history.isEmpty() -> item { Hint(stringResource(R.string.history_empty)) }
+            else -> items(history, key = { "history " + it.id }) { HistoryRow(it) }
+        }
+    }
+}
+
+private fun LazyListScope.section(title: Int) {
+    item(key = "section $title") {
+        Column {
+            HorizontalDivider(Modifier.padding(top = 8.dp))
+            Text(
+                stringResource(title),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Overview(part: Part) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (part.description.isNotBlank()) {
+            Text(part.description, style = MaterialTheme.typography.bodyLarge)
+        }
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val color = if (part.low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            Text(
+                stringResource(R.string.in_stock, part.totalQuantity),
+                style = MaterialTheme.typography.headlineSmall,
+                color = color,
+                modifier = Modifier.testTag("total"),
+            )
+            part.minQuantity?.let {
+                Text(
+                    stringResource(if (part.low) R.string.minimum_low else R.string.minimum, it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = color,
+                    modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+        }
+    }
+    Field(stringResource(R.string.field_manufacturer), part.manufacturer)
+    Field(stringResource(R.string.field_mpn), part.mpn)
+    Field(stringResource(R.string.field_category), part.category)
+    Field(stringResource(R.string.field_package), part.packageName)
+}
+
+/** A label and its value on one line; nothing for an empty value. */
+@Composable
+private fun Field(label: String, value: String) {
+    if (value.isBlank()) return
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            label,
+            modifier = Modifier.width(120.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Tags(tags: List<String>) {
+    FlowRow(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        tags.forEach { tag ->
+            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                Text(tag, Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun Pictures(pictures: List<Attachment>, onShow: (Attachment) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(pictures, key = { it.id }) { picture ->
+            AsyncImage(
+                model = picture.url,
+                contentDescription = picture.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(112.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onShow(picture) }
+                    .testTag("picture"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileRow(file: Attachment, downloading: Boolean, onOpen: () -> Unit) {
+    val datasheet = file.kind == AttachmentKind.DATASHEET.value
+    val kind = stringResource(
+        when {
+            datasheet && file.stored -> R.string.kind_datasheet
+            datasheet -> R.string.kind_datasheet_link
+            file.stored -> R.string.kind_file
+            else -> R.string.kind_link
+        },
+    )
+    ListItem(
+        // A link to a page has no file name; then its address names it.
+        headlineContent = { Text(file.name.ifBlank { file.url }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(kind) },
+        trailingContent = if (downloading) {
+            { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+        } else {
+            null
+        },
+        modifier = Modifier.clickable(enabled = !downloading, onClick = onOpen),
+    )
+}
+
+private val TIME = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+
+@Composable
+private fun HistoryRow(change: StockChange) {
+    val amount = kotlin.math.abs(change.delta)
+    val text = when {
+        change.action == "set" -> stringResource(R.string.history_set, change.quantity, change.location)
+        change.action == "initial" -> stringResource(R.string.history_initial, change.quantity, change.location)
+        change.action == "move" && change.delta >= 0 -> stringResource(R.string.history_moved_in, amount, change.location)
+        change.action == "move" -> stringResource(R.string.history_moved_out, amount, change.location)
+        change.delta >= 0 -> stringResource(R.string.history_added, amount, change.location)
+        else -> stringResource(R.string.history_taken, amount, change.location)
+    }
+    val time = parseServerTime(change.at)?.atZone(ZoneId.systemDefault())?.format(TIME) ?: change.at
+    ListItem(
+        headlineContent = { Text(text) },
+        supportingContent = { Text(if (change.note.isBlank()) time else "$time · ${change.note}") },
+        trailingContent = {
+            Text(
+                (if (change.delta > 0) "+" else if (change.delta < 0) "−" else "±") + amount,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (change.delta < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+        },
+    )
+}
+
+/** A picture over the whole screen; pinch to zoom, tap the cross to close. */
+@Composable
+private fun FullSizePicture(picture: Attachment, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var scale by remember { mutableFloatStateOf(1f) }
+        var offsetX by remember { mutableFloatStateOf(0f) }
+        var offsetY by remember { mutableFloatStateOf(0f) }
+        val transform = rememberTransformableState { _, zoom, pan, _ ->
+            scale = (scale * zoom).coerceIn(1f, 8f)
+            offsetX += pan.x
+            offsetY += pan.y
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black).testTag("full_size")) {
+            AsyncImage(
+                model = picture.url,
+                contentDescription = picture.name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .transformable(transform)
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY),
+            )
+            IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close), tint = Color.White)
+            }
+        }
+    }
+}

@@ -21,11 +21,17 @@ package de.kaylatheil.partstrack
 import android.app.Application
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStore
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import de.kaylatheil.partstrack.data.api.AttachmentDownloader
 import de.kaylatheil.partstrack.data.api.HttpPartstrackApi
 import de.kaylatheil.partstrack.data.api.PartstrackApi
 import de.kaylatheil.partstrack.data.settings.AesGcmTokenCipher
 import de.kaylatheil.partstrack.data.settings.KeystoreTokenKey
 import de.kaylatheil.partstrack.data.settings.SettingsStore
+import java.io.File
 import okhttp3.HttpUrl
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
@@ -35,14 +41,23 @@ typealias ApiFactory = (serverUrl: HttpUrl, token: String?) -> PartstrackApi
 
 /** The objects the whole app shares, built once (dependency injection by hand). */
 class AppContainer(context: Context) {
-    /** One client for the API and, later, images: it holds the connection pool. */
+    /** One client for the API, pictures and downloads: it holds the connection pool. */
     val httpClient = HttpPartstrackApi.httpClient()
 
     val settingsStore = SettingsStore(context.settingsDataStore, AesGcmTokenCipher(KeystoreTokenKey::get))
 
     val apiFactory: ApiFactory = { serverUrl, token -> HttpPartstrackApi(serverUrl, httpClient, { token }) }
+
+    /** Attachments opened in other apps go to the cache, shared through the FileProvider (res/xml/file_paths.xml). */
+    val attachmentDownloader = AttachmentDownloader(httpClient, File(context.cacheDir, "attachments"))
 }
 
-class PartstrackApplication : Application() {
+class PartstrackApplication : Application(), SingletonImageLoader.Factory {
     val container: AppContainer by lazy { AppContainer(this) }
+
+    /** Pictures load through the app's HTTP client (its user agent and connection pool). */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { container.httpClient })) }
+            .build()
 }
