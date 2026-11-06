@@ -1,0 +1,6 @@
+# Keep line endings LF in the repository and the working tree, as in partstrack,
+# except for Windows batch files.
+* text=auto eol=lf
+*.bat eol=crlf
+*.jar binary
+*.png binary

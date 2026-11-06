@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+.kotlin/
+build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Machine-specific SDK path, written by Android Studio
+local.properties
+
+# Signing keys never go into the repository
+*.jks
+*.keystore
+keystore.properties
+
+.DS_Store
