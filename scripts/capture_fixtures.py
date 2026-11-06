@@ -103,7 +103,7 @@ def save(name: str, answer: tuple[int, bytes], expected: int) -> dict | list:
     if status != expected:
         raise SystemExit(f"{name}: expected HTTP {expected}, got {status}: {body.decode(errors='replace')}")
     data = json.loads(body)
-    (OUT / f"{name}.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (OUT / f"{name}.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     return data
 
 
