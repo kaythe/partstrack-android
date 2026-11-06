@@ -28,6 +28,7 @@ import androidx.navigation.toRoute
 import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.ui.parts.PartsScreen
+import de.kaylatheil.partstrack.ui.parts.PartsViewModel
 import de.kaylatheil.partstrack.ui.setup.SetupScreen
 import de.kaylatheil.partstrack.ui.setup.SetupViewModel
 import kotlinx.serialization.Serializable
@@ -61,7 +62,10 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
             )
         }
         composable<PartsRoute> {
-            PartsScreen(settings, onOpenSettings = { navController.navigate(SetupRoute()) })
+            PartsScreen(
+                viewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) },
+                onOpenSettings = { navController.navigate(SetupRoute()) },
+            )
         }
     }
 }

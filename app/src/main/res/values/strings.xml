@@ -49,7 +49,26 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
 
-    <!-- Parts (main screen) -->
-    <string name="mode_read_write">Changes are possible.</string>
-    <string name="mode_read_only">Read-only: no API token is set.</string>
+    <!-- Errors when loading -->
+    <string name="retry">Try again</string>
+    <string name="error_unreachable">Can\'t reach the server. Check that the phone is on the right network or VPN.</string>
+    <string name="error_http">The server answered with an error (HTTP %1$d).</string>
+    <string name="error_not_partstrack">The server\'s answer isn\'t what partstrack answers. Check the address in the settings.</string>
+
+    <!-- Parts list -->
+    <string name="search_hint">Search, e.g. resistance&gt;=10k</string>
+    <string name="clear_search">Clear search</string>
+    <string name="filter_low">Low stock</string>
+    <string name="filter_location">Location</string>
+    <string name="filter_tag">Tag</string>
+    <string name="filter_category">Category</string>
+    <string name="filter_any_location">Any location</string>
+    <string name="filter_any_tag">Any tag</string>
+    <string name="filter_any_category">Any category</string>
+    <string name="filter_unavailable">Couldn\'t load the choices</string>
+    <string name="filter_none">None yet</string>
+    <string name="no_parts_yet">No parts yet.</string>
+    <string name="no_parts_match">No parts match.</string>
+    <string name="clear_filters">Clear search and filters</string>
+    <string name="low">low</string>
 </resources>

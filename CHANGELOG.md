@@ -18,3 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plain HTTP works, as partstrack-web serves it; the settings warn that the
   token then travels unencrypted.
 - A light, dark or system theme.
+- The parts list: search as you type (including attribute filters such as
+  `resistance>=10k`), filters for low stock, location (with its
+  sublocations), tag and category, and pull to refresh. Low stock shows in
+  red. The list reloads when the app comes back into view, and says what is
+  wrong when the server can't be reached.
