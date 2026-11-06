@@ -1,0 +1,46 @@
+[
+  {
+    "api_url": "http://127.0.0.1:8765/api/locations/1",
+    "description": "",
+    "id": 1,
+    "name": "Cabinet",
+    "parent": null,
+    "part_count": 0,
+    "parts_url": "http://127.0.0.1:8765/api/parts?location=%2FCabinet",
+    "path": "Cabinet",
+    "total_quantity": 0
+  },
+  {
+    "api_url": "http://127.0.0.1:8765/api/locations/2",
+    "description": "Resistors",
+    "id": 2,
+    "name": "Drawer 1",
+    "parent": "Cabinet",
+    "part_count": 1,
+    "parts_url": "http://127.0.0.1:8765/api/parts?location=%2FCabinet%2FDrawer+1",
+    "path": "Cabinet/Drawer 1",
+    "total_quantity": 97
+  },
+  {
+    "api_url": "http://127.0.0.1:8765/api/locations/4",
+    "description": "",
+    "id": 4,
+    "name": "Drawer 2",
+    "parent": "Cabinet",
+    "part_count": 1,
+    "parts_url": "http://127.0.0.1:8765/api/parts?location=%2FCabinet%2FDrawer+2",
+    "path": "Cabinet/Drawer 2",
+    "total_quantity": 15
+  },
+  {
+    "api_url": "http://127.0.0.1:8765/api/locations/3",
+    "description": "",
+    "id": 3,
+    "name": "Shelf",
+    "parent": null,
+    "part_count": 2,
+    "parts_url": "http://127.0.0.1:8765/api/parts?location=%2FShelf",
+    "path": "Shelf",
+    "total_quantity": 8
+  }
+]

@@ -1,0 +1,3 @@
+{
+  "error": "PUT is not allowed here; allowed: DELETE, GET, HEAD, OPTIONS, PATCH"
+}

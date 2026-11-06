@@ -1,0 +1,30 @@
+[
+  {
+    "api_url": "http://127.0.0.1:8765/api/parts/2",
+    "attachments": [],
+    "attributes": {},
+    "category": "IC",
+    "created_at": "2026-11-06 10:24:09",
+    "description": "Timer",
+    "id": 2,
+    "low": true,
+    "manufacturer": "",
+    "min_quantity": 5,
+    "mpn": "",
+    "name": "NE555",
+    "notes": "",
+    "package": "DIP-8",
+    "stock": [
+      {
+        "location": "Shelf",
+        "quantity": 3
+      }
+    ],
+    "tags": [
+      "ic"
+    ],
+    "total_quantity": 3,
+    "updated_at": "2026-11-06 10:24:09",
+    "web_url": "http://127.0.0.1:8765/parts/2"
+  }
+]

@@ -46,6 +46,15 @@ and use `http://10.0.2.2:8080/` in the emulator (the emulator's name for the
 host's `localhost`). A server in WSL 2 works the same way, because Windows
 forwards `localhost` to it.
 
+The API client's tests answer with what a real `partstrack-web` answered,
+stored in `app/src/test/resources/api/`. When the API changes, capture them
+again with `python scripts/capture_fixtures.py [PARTSTRACK_CHECKOUT]` (default
+`../partstrack`, which needs Flask and waitress); it runs its own scratch
+server. `LiveServerTest` also sends every kind of request to a real server,
+but only when `PARTSTRACK_TEST_SERVER` (e.g. `http://127.0.0.1:8765/`) and
+`PARTSTRACK_TEST_TOKEN` are set; it adds and deletes parts and locations, so
+use a scratch database for it too.
+
 ## License
 
 Copyright (C) 2026 Kayla Theil. partstrack for Android is free software,

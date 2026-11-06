@@ -1,0 +1,61 @@
+[
+  {
+    "api_url": "http://127.0.0.1:8765/api/parts/1",
+    "attachments": [
+      {
+        "added_at": "2026-11-06 10:24:09",
+        "id": 2,
+        "kind": "datasheet",
+        "name": "rc0603.pdf",
+        "source_url": null,
+        "stored": false,
+        "url": "https://www.example.com/rc0603.pdf"
+      },
+      {
+        "added_at": "2026-11-06 10:24:09",
+        "id": 1,
+        "kind": "image",
+        "name": "photo.png",
+        "source_url": null,
+        "stored": true,
+        "url": "http://127.0.0.1:8765/attachments/1"
+      }
+    ],
+    "attributes": {
+      "resistance": "10k",
+      "tolerance": "1%"
+    },
+    "category": "Resistor",
+    "created_at": "2026-11-06 10:24:09",
+    "description": "Thick film resistor, 1%",
+    "id": 1,
+    "low": false,
+    "manufacturer": "Yageo",
+    "min_quantity": 50,
+    "mpn": "RC0603FR-0710KL",
+    "name": "10k resistor",
+    "notes": "",
+    "package": "0603",
+    "stock": [
+      {
+        "location": "Cabinet/Drawer 1",
+        "quantity": 97
+      },
+      {
+        "location": "Cabinet/Drawer 2",
+        "quantity": 15
+      },
+      {
+        "location": "Shelf",
+        "quantity": 5
+      }
+    ],
+    "tags": [
+      "resistor",
+      "smd"
+    ],
+    "total_quantity": 117,
+    "updated_at": "2026-11-06 10:24:09",
+    "web_url": "http://127.0.0.1:8765/parts/1"
+  }
+]

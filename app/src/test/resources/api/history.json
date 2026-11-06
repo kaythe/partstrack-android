@@ -1,0 +1,57 @@
+[
+  {
+    "action": "move",
+    "at": "2026-11-06 10:24:09",
+    "delta": 5,
+    "id": 6,
+    "location": "Shelf",
+    "note": "sorting",
+    "part_id": 1,
+    "part_name": "10k resistor",
+    "quantity": 5
+  },
+  {
+    "action": "move",
+    "at": "2026-11-06 10:24:09",
+    "delta": -5,
+    "id": 5,
+    "location": "Cabinet/Drawer 2",
+    "note": "sorting",
+    "part_id": 1,
+    "part_name": "10k resistor",
+    "quantity": 15
+  },
+  {
+    "action": "set",
+    "at": "2026-11-06 10:24:09",
+    "delta": 20,
+    "id": 4,
+    "location": "Cabinet/Drawer 2",
+    "note": "",
+    "part_id": 1,
+    "part_name": "10k resistor",
+    "quantity": 20
+  },
+  {
+    "action": "adjust",
+    "at": "2026-11-06 10:24:09",
+    "delta": -3,
+    "id": 3,
+    "location": "Cabinet/Drawer 1",
+    "note": "for the amplifier",
+    "part_id": 1,
+    "part_name": "10k resistor",
+    "quantity": 97
+  },
+  {
+    "action": "set",
+    "at": "2026-11-06 10:24:09",
+    "delta": 100,
+    "id": 1,
+    "location": "Cabinet/Drawer 1",
+    "note": "new part",
+    "part_id": 1,
+    "part_name": "10k resistor",
+    "quantity": 100
+  }
+]

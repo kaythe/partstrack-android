@@ -1,0 +1,11 @@
+{
+  "api_url": "http://127.0.0.1:8765/api/locations/1",
+  "description": "",
+  "id": 1,
+  "name": "Cabinet",
+  "parent": null,
+  "part_count": 0,
+  "parts_url": "http://127.0.0.1:8765/api/parts?location=%2FCabinet",
+  "path": "Cabinet",
+  "total_quantity": 0
+}

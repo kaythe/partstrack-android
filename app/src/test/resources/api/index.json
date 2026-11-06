@@ -1,0 +1,28 @@
+{
+  "authentication": "changes need an API token (see 'partstrack token add') in the header 'Authorization: Bearer <token>'",
+  "changes": {
+    "DELETE /api/locations/<id>": "delete an empty location",
+    "DELETE /api/parts/<id>": "delete a part with its stock, history and attachments",
+    "DELETE /api/parts/<id>/attachments/<id>": "remove an attachment",
+    "PATCH /api/locations/<id>": "name, description, parent (a path, or null for the top level)",
+    "PATCH /api/parts/<id>": "change the fields given; tags and attributes replace all; min_quantity null removes it",
+    "POST /api/locations": "add a location: path (parents are created too), description",
+    "POST /api/parts": "add a part: name (required), description, manufacturer, mpn, category, package, notes, tags (list), attributes (object), min_quantity, stock (list of {location, quantity})",
+    "POST /api/parts/<id>/attachments": "attach a link as JSON: url, kind (datasheet, image, other; default: from the name), download (default true: store a copy of a file a link points to); or upload a file as multipart/form-data: file, kind",
+    "POST /api/parts/<id>/attachments/<id>/download": "store a copy of the file a link points to",
+    "POST /api/parts/<id>/move": "to, and from with an optional quantity (default: all there); without from, all stock moves; note",
+    "POST /api/parts/<id>/stock": "location and either quantity (the new amount there) or delta (added or, if negative, taken); note"
+  },
+  "endpoints": {
+    "/api/categories": "categories in use",
+    "/api/history": "stock changes, newest first; filters: part (id), location, limit (default 50, 0 for all)",
+    "/api/locations": "all locations, parents before their children",
+    "/api/locations/<id>": "one location",
+    "/api/parts": "parts; filters: q (search, e.g. 'smd resistance>=10k'), tag, location, category, low",
+    "/api/parts/<id>": "one part",
+    "/api/snapshot": "the database and attachments as .tar.gz, for the desktop app's read-only copies",
+    "/api/tags": "tags with the number of parts that have them",
+    "/api/token": "checks the API token sent (401 if it isn't valid) and whether changes can be saved"
+  },
+  "version": "1.3.0"
+}

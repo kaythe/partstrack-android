@@ -1,0 +1,21 @@
+{
+  "api_url": "http://127.0.0.1:8765/api/parts/3",
+  "attachments": [],
+  "attributes": {},
+  "category": "",
+  "created_at": "2026-11-06 10:24:09",
+  "description": "",
+  "id": 3,
+  "low": false,
+  "manufacturer": "",
+  "min_quantity": null,
+  "mpn": "",
+  "name": "Mystery part",
+  "notes": "",
+  "package": "",
+  "stock": [],
+  "tags": [],
+  "total_quantity": 0,
+  "updated_at": "2026-11-06 10:24:09",
+  "web_url": "http://127.0.0.1:8765/parts/3"
+}

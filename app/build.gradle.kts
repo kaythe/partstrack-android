@@ -17,10 +17,11 @@
  */
 
 // Kotlin support is built into the Android Gradle Plugin (9.0 and later),
-// so only the Compose compiler plugin is applied here.
+// so only the compiler plugins for Compose and kotlinx.serialization are applied here.
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -52,6 +53,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true // for the version in the user agent
     }
 }
 
@@ -62,5 +64,13 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.coroutines)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }
