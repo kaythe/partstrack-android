@@ -22,6 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -29,6 +33,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.kaylatheil.partstrack.data.api.Attachment
 import de.kaylatheil.partstrack.data.api.Part
@@ -59,6 +64,12 @@ class PartContentTest {
                         onRetry = { events += "retry" },
                         onOpenAttachment = { events += "open ${it.name}" },
                         onOpenInWebInterface = { events += "web" },
+                        onAdjust = { location, delta -> events += "adjust $location $delta" },
+                        onShowStockDialog = { mode, location -> events += "dialog $mode $location" },
+                        onShowMoveDialog = { events += "move dialog $it" },
+                        onDismissDialog = { events += "dismiss" },
+                        onSave = { events += "save $it" },
+                        onOpenSettings = { events += "settings" },
                     ),
                 )
             }
@@ -175,5 +186,85 @@ class PartContentTest {
         compose.onNodeWithText("no part with id 1").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf("retry"), events)
+    }
+
+    @Test
+    fun withoutATokenStockIsOnlyShown() {
+        state = PartUiState(part = part, loading = false)
+        show()
+        scrollTo("Cabinet/Drawer 1")
+        compose.onNodeWithTag("add_one Cabinet/Drawer 1").assertDoesNotExist()
+        compose.onNodeWithTag("add_stock").assertDoesNotExist()
+    }
+
+    @Test
+    fun takeAndAddOne() {
+        state = PartUiState(part = part, loading = false, canWrite = true, pending = mapOf("Shelf" to -20))
+        show()
+        scrollTo("Shelf")
+        compose.onNodeWithTag("quantity Cabinet/Drawer 1", useUnmergedTree = true).assertTextEquals("97")
+        compose.onNodeWithTag("quantity Shelf", useUnmergedTree = true).assertTextEquals("0") // a change on its way counts
+        compose.onNodeWithTag("take_one Shelf").assertIsNotEnabled()
+        compose.onNodeWithTag("take_one Cabinet/Drawer 1").performClick()
+        compose.onNodeWithTag("add_one Shelf").performClick()
+        assertEquals(listOf("adjust Cabinet/Drawer 1 -1", "adjust Shelf 1"), events)
+    }
+
+    @Test
+    fun stockMenuAndAddStock() {
+        state = PartUiState(part = part, loading = false, canWrite = true)
+        show()
+        scrollTo("Shelf")
+        compose.onNodeWithTag("stock_menu Shelf").performClick()
+        compose.onNodeWithText("Take or add…").performClick()
+        compose.onNodeWithTag("stock_menu Shelf").performClick()
+        compose.onNodeWithText("Set the amount…").performClick()
+        compose.onNodeWithTag("stock_menu Shelf").performClick()
+        compose.onNodeWithText("Move…").performClick()
+        compose.onNodeWithTag("part").performScrollToNode(hasTestTag("add_stock"))
+        compose.onNodeWithTag("add_stock").performClick()
+        assertEquals(listOf("dialog TAKE Shelf", "dialog SET Shelf", "move dialog Shelf", "dialog ADD null"), events)
+    }
+
+    @Test
+    fun stockDialog() {
+        state = PartUiState(part = part, loading = false, canWrite = true, dialog = StockDialog.Change(StockMode.TAKE, "Shelf"))
+        show()
+        compose.onNodeWithText("20 there now").assertIsDisplayed()
+        compose.onNodeWithTag("save").assertIsNotEnabled()
+        compose.onNodeWithTag("amount").performTextInput("25")
+        compose.onNodeWithText("Only 20 there.").assertIsDisplayed()
+        compose.onNodeWithTag("save").assertIsNotEnabled()
+        compose.onNodeWithTag("mode_add").performClick()
+        compose.onNodeWithTag("save").assertIsEnabled()
+        compose.onNodeWithTag("note").performTextInput("from the order")
+        compose.onNodeWithTag("save").performClick()
+        assertEquals(listOf("save ${StockRequest.Adjust("Shelf", 25, "from the order")}"), events)
+    }
+
+    @Test
+    fun stockDialogError() {
+        state = PartUiState(
+            part = part, loading = false, canWrite = true, dialog = StockDialog.Change(StockMode.ADD, "Shelf"),
+            dialogError = LoadError.Server(401, "unknown or revoked API token"),
+        )
+        show()
+        compose.onNodeWithText("unknown or revoked API token").assertIsDisplayed()
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(listOf("settings", "dismiss"), events)
+    }
+
+    @Test
+    fun moveDialog() {
+        state = PartUiState(part = part, loading = false, canWrite = true, dialog = StockDialog.Move("Shelf"))
+        show()
+        compose.onNodeWithText("Leave empty to move all 20.").assertIsDisplayed()
+        compose.onNodeWithTag("to").performTextInput("Shelf")
+        compose.onNodeWithText("That is where it is now.").assertIsDisplayed()
+        compose.onNodeWithTag("save").assertIsNotEnabled()
+        compose.onNodeWithTag("to").performTextInput("/Box")
+        compose.onNodeWithTag("save").performClick()
+        assertEquals(listOf("save ${StockRequest.Move("Shelf", "Shelf/Box", null)}"), events)
     }
 }

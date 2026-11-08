@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -44,6 +45,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,8 +60,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -79,6 +83,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -95,6 +100,8 @@ import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.StockChange
 import de.kaylatheil.partstrack.data.api.parseServerTime
 import de.kaylatheil.partstrack.ui.common.ErrorView
+import de.kaylatheil.partstrack.ui.common.LoadError
+import de.kaylatheil.partstrack.ui.common.Remove
 import de.kaylatheil.partstrack.ui.common.message
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -102,7 +109,7 @@ import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
 
 @Composable
-fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit) {
+fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -126,6 +133,12 @@ fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit) {
             onOpenAttachment = viewModel::open,
             onOpenInWebInterface = viewModel::openInWebInterface,
             onErrorShown = viewModel::onErrorShown,
+            onAdjust = viewModel::adjust,
+            onShowStockDialog = viewModel::showStockDialog,
+            onShowMoveDialog = viewModel::showMoveDialog,
+            onDismissDialog = viewModel::dismissDialog,
+            onSave = viewModel::save,
+            onOpenSettings = onOpenSettings,
         ),
     )
 }
@@ -160,6 +173,13 @@ class PartActions(
     val onOpenAttachment: (Attachment) -> Unit = {},
     val onOpenInWebInterface: () -> Unit = {},
     val onErrorShown: () -> Unit = {},
+    /** −/+ at a location. */
+    val onAdjust: (location: String, delta: Int) -> Unit = { _, _ -> },
+    val onShowStockDialog: (StockMode, location: String?) -> Unit = { _, _ -> },
+    val onShowMoveDialog: (from: String) -> Unit = {},
+    val onDismissDialog: () -> Unit = {},
+    val onSave: (StockRequest) -> Unit = {},
+    val onOpenSettings: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for UI tests. */
@@ -167,11 +187,15 @@ class PartActions(
 @Composable
 fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHostState = remember { SnackbarHostState() }) {
     val part = state.part
-    val passingError = (state.error?.takeIf { part != null } ?: state.downloadError)?.message()
-    LaunchedEffect(passingError) {
-        if (passingError != null) {
-            snackbar.showSnackbar(passingError)
+    val passingError = state.error?.takeIf { part != null } ?: state.downloadError ?: state.changeError
+    val passingMessage = passingError?.message()
+    // A token the server doesn't take: the way to fix it is in the settings.
+    val settingsLabel = stringResource(R.string.open_settings).takeIf { passingError.isUnauthorized() }
+    LaunchedEffect(passingMessage) {
+        if (passingMessage != null) {
+            val result = snackbar.showSnackbar(passingMessage, actionLabel = settingsLabel, withDismissAction = settingsLabel != null)
             actions.onErrorShown()
+            if (result == SnackbarResult.ActionPerformed) actions.onOpenSettings()
         }
     }
     var fullSize by remember { mutableStateOf<Attachment?>(null) }
@@ -204,6 +228,27 @@ fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHost
         }
     }
     fullSize?.let { FullSizePicture(it, onClose = { fullSize = null }) }
+    if (part != null) StockDialogs(part, state, actions)
+}
+
+private fun LoadError?.isUnauthorized() = this is LoadError.Server && status == 401
+
+@Composable
+private fun StockDialogs(part: Part, state: PartUiState, actions: PartActions) {
+    val dialog = state.dialog ?: return
+    val context = DialogContext(
+        part = part,
+        locations = state.locations,
+        saving = state.saving,
+        error = state.dialogError,
+        onSave = actions.onSave,
+        onDismiss = actions.onDismissDialog,
+        onOpenSettings = actions.onOpenSettings,
+    )
+    when (dialog) {
+        is StockDialog.Change -> StockChangeDialog(dialog, context)
+        is StockDialog.Move -> MoveDialog(dialog, context)
+    }
 }
 
 @Composable
@@ -236,10 +281,26 @@ private fun PartDetails(part: Part, state: PartUiState, actions: PartActions, on
             item { Hint(stringResource(R.string.no_stock)) }
         } else {
             items(part.stock, key = { "stock " + it.location }) { entry ->
-                ListItem(
-                    headlineContent = { Text(entry.location) },
-                    trailingContent = { Text(entry.quantity.toString(), style = MaterialTheme.typography.titleMedium) },
-                )
+                val quantity = state.shownQuantity(entry.location, entry.quantity)
+                if (state.canWrite) {
+                    StockRow(entry.location, quantity, actions)
+                } else {
+                    ListItem(
+                        headlineContent = { Text(entry.location) },
+                        trailingContent = { Text(quantity.toString(), style = MaterialTheme.typography.titleMedium) },
+                    )
+                }
+            }
+        }
+        if (state.canWrite) {
+            item(key = "add stock") {
+                TextButton(
+                    onClick = { actions.onShowStockDialog(StockMode.ADD, null) },
+                    modifier = Modifier.padding(horizontal = 8.dp).testTag("add_stock"),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text(stringResource(R.string.add_stock))
+                }
             }
         }
 
@@ -319,6 +380,54 @@ private fun Overview(part: Part) {
     Field(stringResource(R.string.field_mpn), part.mpn)
     Field(stringResource(R.string.field_category), part.category)
     Field(stringResource(R.string.field_package), part.packageName)
+}
+
+/** A location with its amount, −/+ to take or add one, and a menu for the rest. */
+@Composable
+private fun StockRow(location: String, quantity: Int, actions: PartActions) {
+    var menu by remember { mutableStateOf(false) }
+    ListItem(
+        headlineContent = { Text(location) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { actions.onAdjust(location, -1) },
+                    enabled = quantity > 0,
+                    modifier = Modifier.testTag("take_one $location"),
+                ) {
+                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.take_one, location))
+                }
+                Text(
+                    quantity.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(min = 32.dp).testTag("quantity $location"),
+                )
+                IconButton(onClick = { actions.onAdjust(location, 1) }, modifier = Modifier.testTag("add_one $location")) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_one, location))
+                }
+                Box {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.testTag("stock_menu $location")) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.stock_menu, location))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_change_stock)) },
+                            onClick = { menu = false; actions.onShowStockDialog(StockMode.TAKE, location) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_set_stock)) },
+                            onClick = { menu = false; actions.onShowStockDialog(StockMode.SET, location) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_move_stock)) },
+                            onClick = { menu = false; actions.onShowMoveDialog(location) },
+                        )
+                    }
+                }
+            }
+        },
+    )
 }
 
 /** A label and its value on one line; nothing for an empty value. */

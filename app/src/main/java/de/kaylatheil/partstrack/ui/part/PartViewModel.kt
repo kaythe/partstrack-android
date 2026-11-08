@@ -24,6 +24,7 @@ import de.kaylatheil.partstrack.ApiFactory
 import de.kaylatheil.partstrack.data.api.Attachment
 import de.kaylatheil.partstrack.data.api.AttachmentDownloader
 import de.kaylatheil.partstrack.data.api.DownloadedFile
+import de.kaylatheil.partstrack.data.api.Location
 import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.PartstrackApi
 import de.kaylatheil.partstrack.data.api.PartstrackException
@@ -41,6 +42,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Something the screen should open in another app, once. */
 sealed interface OpenRequest {
@@ -49,6 +52,14 @@ sealed interface OpenRequest {
 
     /** A downloaded file, for whatever app opens its type; [fallbackUrl] if none does. */
     data class File(val file: DownloadedFile, val fallbackUrl: String) : OpenRequest
+}
+
+/** An open stock dialog. */
+sealed interface StockDialog {
+    /** Take, add or set; [location] null: none chosen yet. */
+    data class Change(val mode: StockMode, val location: String?) : StockDialog
+
+    data class Move(val from: String) : StockDialog
 }
 
 data class PartUiState(
@@ -63,9 +74,29 @@ data class PartUiState(
     /** Downloading an attachment failed. */
     val downloadError: LoadError? = null,
     val open: OpenRequest? = null,
-)
+    /** There is a token, so changes are offered. */
+    val canWrite: Boolean = false,
+    /** Changes from the −/+ buttons per location that the server hasn't answered yet. */
+    val pending: Map<String, Int> = emptyMap(),
+    /** A change from the −/+ buttons failed. */
+    val changeError: LoadError? = null,
+    val dialog: StockDialog? = null,
+    /** The dialog's change is being sent. */
+    val saving: Boolean = false,
+    /** The dialog's change failed; the dialog stays open with its input. */
+    val dialogError: LoadError? = null,
+    /** All locations, for the location fields; null until loaded (or if that failed). */
+    val locations: List<Location>? = null,
+) {
+    /** What to show at [location]: the server's amount with the changes still on their way. */
+    fun shownQuantity(location: String, quantity: Int): Int = quantity + (pending[location] ?: 0)
+}
 
-/** One part: its details, stock, attachments and latest history, read only. */
+/**
+ * One part: its details, stock, attachments and latest history, and changes
+ * to its stock. Changes are sent one after the other, in the order they were
+ * made, and the part is shown as the server answers.
+ */
 class PartViewModel(
     private val partId: Int,
     settings: Flow<Settings>,
@@ -78,11 +109,23 @@ class PartViewModel(
     private var api: PartstrackApi? = null
     private var loadJob: Job? = null
     private var downloadJob: Job? = null
+    private var historyJob: Job? = null
+    private var locationsJob: Job? = null
+
+    /** Changes go to the server one at a time, so their answers arrive in order. */
+    private val changeLock = Mutex()
+
+    /**
+     * Goes up when a change starts and when it is answered: a load that ran
+     * meanwhile may have read the part from before the change.
+     */
+    private var changeGeneration = 0
 
     init {
         viewModelScope.launch {
             settings.map { it.serverUrl to it.token }.distinctUntilChanged().collect { (url, token) ->
                 api = url?.let { apiFactory(it, token) }
+                _state.update { it.copy(canWrite = url != null && token != null) }
                 load()
             }
         }
@@ -100,6 +143,7 @@ class PartViewModel(
         loadJob?.cancel()
         if (!quiet) _state.update { it.copy(loading = true) }
         loadJob = viewModelScope.launch {
+            val generation = changeGeneration
             val history = async {
                 try {
                     api.history(partId = partId, limit = HISTORY_ENTRIES)
@@ -109,13 +153,113 @@ class PartViewModel(
             }
             try {
                 val part = api.part(partId)
-                _state.update { it.copy(part = part, error = null) }
+                // A change answered meanwhile has the newer part.
+                if (generation == changeGeneration) _state.update { it.copy(part = part, error = null) }
             } catch (e: PartstrackException) {
                 _state.update { it.copy(error = e.toLoadError()) }
             }
             // A failed reload keeps the history shown before.
-            val changes = history.await()
-            _state.update { it.copy(history = changes ?: it.history, loading = false) }
+            val entries = history.await()
+            _state.update { it.copy(history = entries ?: it.history, loading = false) }
+        }
+    }
+
+    private fun loadHistory() {
+        val api = api ?: return
+        historyJob?.cancel()
+        historyJob = viewModelScope.launch {
+            try {
+                val entries = api.history(partId = partId, limit = HISTORY_ENTRIES)
+                _state.update { it.copy(history = entries) }
+            } catch (_: PartstrackException) {
+                // The change itself worked; the older history stays until the next load.
+            }
+        }
+    }
+
+    private fun loadLocations() {
+        val api = api ?: return
+        if (locationsJob?.isActive == true) return
+        locationsJob = viewModelScope.launch {
+            try {
+                val locations = api.locations()
+                _state.update { it.copy(locations = locations) }
+            } catch (_: PartstrackException) {
+                // Without them, locations can still be typed.
+            }
+        }
+    }
+
+    /**
+     * Sends a change after those before it and shows the part it answers
+     * with; then [after] updates the state with the error, if any.
+     */
+    private suspend fun change(call: suspend (PartstrackApi) -> Part, after: (PartUiState, LoadError?) -> PartUiState) {
+        val ok = changeLock.withLock {
+            val api = api ?: run {
+                _state.update { after(it, LoadError.Unreachable(null)) }
+                return
+            }
+            changeGeneration++
+            try {
+                val part = call(api)
+                _state.update { after(it.copy(part = part), null) }
+                true
+            } catch (e: PartstrackException) {
+                _state.update { after(it, e.toLoadError()) }
+                false
+            } finally {
+                changeGeneration++
+            }
+        }
+        if (ok) loadHistory()
+    }
+
+    /** −/+ at a location: takes or adds [delta] at once, without a dialog. */
+    fun adjust(location: String, delta: Int) {
+        if (!_state.value.canWrite) return
+        _state.update { it.copy(pending = it.pending.plus(location, delta)) }
+        viewModelScope.launch {
+            change({ it.adjustStock(partId, location, delta) }) { state, error ->
+                state.copy(pending = state.pending.plus(location, -delta), changeError = error ?: state.changeError)
+            }
+        }
+    }
+
+    fun showStockDialog(mode: StockMode, location: String? = null) = showDialog(StockDialog.Change(mode, location))
+
+    fun showMoveDialog(from: String) = showDialog(StockDialog.Move(from))
+
+    private fun showDialog(dialog: StockDialog) {
+        if (!_state.value.canWrite) return
+        _state.update { it.copy(dialog = dialog, saving = false, dialogError = null) }
+        loadLocations()
+    }
+
+    /** Closes the dialog, unless its change is on its way. */
+    fun dismissDialog() {
+        _state.update { if (it.saving) it else it.copy(dialog = null, dialogError = null) }
+    }
+
+    /** Sends the dialog's change; the dialog closes when it is saved. */
+    fun save(request: StockRequest) {
+        val state = _state.value
+        if (state.dialog == null || state.saving) return
+        _state.update { it.copy(saving = true, dialogError = null) }
+        viewModelScope.launch {
+            change({ api ->
+                when (request) {
+                    is StockRequest.Adjust -> api.adjustStock(partId, request.location, request.delta, request.note)
+                    is StockRequest.Set -> api.setStock(partId, request.location, request.quantity, request.note)
+                    is StockRequest.Move -> api.moveStock(partId, request.from, request.to, request.quantity, request.note)
+                }
+            }) { state, error ->
+                if (error == null) {
+                    state.copy(saving = false, dialog = null, dialogError = null)
+                } else {
+                    state.copy(saving = false, dialogError = error)
+                }
+            }
         }
     }
 
@@ -148,10 +292,16 @@ class PartViewModel(
     }
 
     fun onErrorShown() {
-        _state.update { it.copy(error = if (it.part == null) it.error else null, downloadError = null) }
+        _state.update { it.copy(error = if (it.part == null) it.error else null, downloadError = null, changeError = null) }
     }
 
     companion object {
         const val HISTORY_ENTRIES = 10
     }
+}
+
+/** Adds [delta] to the amount for [key], leaving out amounts that come to 0. */
+private fun Map<String, Int>.plus(key: String, delta: Int): Map<String, Int> {
+    val sum = (this[key] ?: 0) + delta
+    return if (sum == 0) this - key else this + (key to sum)
 }

@@ -80,6 +80,7 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
                     PartViewModel(id, container.settingsStore.settings, container.apiFactory, container.attachmentDownloader)
                 },
                 onBack = { navController.popBackStack() },
+                onOpenSettings = { navController.navigate(SetupRoute()) },
             )
         }
     }

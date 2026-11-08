@@ -29,3 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pinch to zoom); datasheets and other files stored on the server open in
   the app that handles them, links in the browser. The menu opens the part
   in the web interface.
+- Stock changes on a part's page, with a token: − and + next to each
+  location take or add one at once (taps in a row show right away and are
+  sent in order); its menu takes or adds an amount, sets a counted amount
+  or moves some or all of it to another location, each with an optional
+  note. "Add stock" puts the part in a location. Locations are chosen from
+  the existing ones or typed as a path, and new ones are created. The
+  dialogs check the input before sending, keep it if the server refuses,
+  and offer the settings when the token isn't accepted.

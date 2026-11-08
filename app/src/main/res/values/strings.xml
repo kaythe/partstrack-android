@@ -22,6 +22,8 @@
     <string name="show">Show</string>
     <string name="hide">Hide</string>
     <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="open_settings">Settings</string>
 
     <!-- Setup and settings -->
     <string name="setup_title">Connect to partstrack</string>
@@ -104,4 +106,35 @@
     <string name="history_taken" tools:ignore="PluralsCandidate">Took %1$d from %2$s</string>
     <string name="history_moved_in">Moved %1$d to %2$s</string>
     <string name="history_moved_out" tools:ignore="PluralsCandidate">Moved %1$d away from %2$s</string>
+
+    <!-- Stock changes. As in the history, no noun follows the numbers. -->
+    <string name="add_stock">Add stock…</string>
+    <string name="take_one">Take one from %1$s</string>
+    <string name="add_one">Add one at %1$s</string>
+    <string name="stock_menu">More for %1$s</string>
+    <string name="menu_change_stock">Take or add…</string>
+    <string name="menu_set_stock">Set the amount…</string>
+    <string name="menu_move_stock">Move…</string>
+    <string name="stock_dialog_title">Change stock</string>
+    <string name="move_dialog_title">Move stock</string>
+    <string name="mode_take">Take</string>
+    <string name="mode_add">Add</string>
+    <string name="mode_set">Set to</string>
+    <string name="field_location">Location</string>
+    <string name="field_from">From</string>
+    <string name="field_to">To</string>
+    <string name="field_amount_take">Amount to take</string>
+    <string name="field_amount_add">Amount to add</string>
+    <string name="field_amount_set">New amount</string>
+    <string name="field_amount_move">Amount</string>
+    <string name="field_note">Note (optional)</string>
+    <string name="amount_all" tools:ignore="PluralsCandidate">Leave empty to move all %1$d.</string>
+    <string name="quantity_here" tools:ignore="PluralsCandidate">%1$d here</string>
+    <string name="quantity_there_now" tools:ignore="PluralsCandidate">%1$d there now</string>
+    <string name="location_new">A new location; it is created when saved.</string>
+    <string name="problem_not_there">None of this part is stored there.</string>
+    <string name="problem_same_location">That is where it is now.</string>
+    <string name="problem_bad_amount">Enter a whole number, at least 1.</string>
+    <string name="problem_bad_amount_set">Enter a whole number.</string>
+    <string name="problem_too_many" tools:ignore="PluralsCandidate">Only %1$d there.</string>
 </resources>
