@@ -55,6 +55,7 @@
     <string name="retry">Try again</string>
     <string name="error_unreachable">Can\'t reach the server. Check that the phone is on the right network or VPN.</string>
     <string name="error_http">The server answered with an error (HTTP %1$d).</string>
+    <string name="local_network_not_allowed">partstrack isn\'t allowed to reach devices on the local network, where the server usually is. Allow it in the app\'s permissions (\u201cNearby devices\u201d).</string>
     <string name="error_not_partstrack">The server\'s answer isn\'t what partstrack answers. Check the address in the settings.</string>
 
     <!-- Parts list -->

@@ -65,3 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cancelled, or tried again when they fail. Files and links can be
   removed, from their menu or from the full-size picture, and a link's
   file can be stored later.
+- Android 17 and later: the app asks for the permission to reach the local
+  network ("Nearby devices"), where the server usually is, once a server is
+  set up and before the first check. Without it, the check and screens that
+  can't load say so and lead to the app's settings; they load again on
+  return.

@@ -232,7 +232,9 @@ class PartsViewModelTest {
 
     @Test
     fun resumeBeforeTheFirstAnswerDoesNothing() = runTest {
-        answer = { throw NetworkException(ConnectException("gone")) }
+        // The first load is still on its way: it isn't started again.
+        val never = CompletableDeferred<List<Part>>()
+        answer = { never.await() }
         val viewModel = newViewModel()
         searches.clear()
         viewModel.onResume()
@@ -318,5 +320,18 @@ class PartsViewModelTest {
         val viewModel = newViewModel()
         viewModel.onCameraRefused()
         assertEquals(ScanResult.NoCamera, viewModel.state.value.scan)
+    }
+
+    @Test
+    fun resumeAfterAFailedFirstLoadTriesAgain() = runTest {
+        // E.g. back from allowing the local network in the system settings.
+        answer = { throw NetworkException(ConnectException("timeout")) }
+        val viewModel = newViewModel()
+        assertFalse(viewModel.state.value.loaded)
+        answer = { allParts }
+        viewModel.onResume()
+        assertTrue(viewModel.state.value.loaded)
+        assertNull(viewModel.state.value.error)
+        assertEquals(allParts, viewModel.state.value.parts)
     }
 }

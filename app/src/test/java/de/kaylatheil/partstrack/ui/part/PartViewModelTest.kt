@@ -676,4 +676,15 @@ class PartViewModelTest {
         viewModel.askRemove(part.attachments.first())
         assertNull(viewModel.state.value.removing)
     }
+
+    @Test
+    fun resumeAfterAFailedFirstLoadTriesAgain() = runTest {
+        partAnswer = { throw NetworkException(ConnectException("timeout")) }
+        val viewModel = newViewModel()
+        assertNull(viewModel.state.value.part)
+        partAnswer = { part }
+        viewModel.onResume()
+        assertEquals(part, viewModel.state.value.part)
+        assertNull(viewModel.state.value.error)
+    }
 }

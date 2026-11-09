@@ -168,7 +168,12 @@ class PartViewModel(
 
     /** Shown again: another device may have changed the part, so reload quietly. */
     fun onResume() {
-        if (_state.value.part != null) load(quiet = true)
+        val state = _state.value
+        when {
+            state.part != null -> load(quiet = true)
+            // E.g. back from allowing the local network, or with the VPN on now.
+            state.error != null -> retry()
+        }
     }
 
     private fun load(quiet: Boolean = false) {

@@ -30,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
+import de.kaylatheil.partstrack.ui.common.rememberLocalNetworkRequest
 import de.kaylatheil.partstrack.ui.edit.EditPartScreen
 import de.kaylatheil.partstrack.ui.edit.EditPartViewModel
 import de.kaylatheil.partstrack.ui.locations.LocationsScreen
@@ -69,6 +70,13 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
     val navController = rememberNavController()
     // Chosen once: later changes to the settings must not reset the navigation.
     val start: Any = remember { if (settings.serverUrl == null) SetupRoute(firstStart = true) else PartsRoute }
+    // The server is usually on the local network, which Android 17 lets the app reach only with
+    // a permission: ask for it as soon as there is a server. Screens that couldn't load meanwhile
+    // load again when the question is answered (they come back into view).
+    val askForLocalNetwork = rememberLocalNetworkRequest()
+    LaunchedEffect(settings.serverUrl) {
+        if (settings.serverUrl != null) askForLocalNetwork {}
+    }
     NavHost(navController, startDestination = start) {
         composable<SetupRoute> { entry ->
             val route = entry.toRoute<SetupRoute>()

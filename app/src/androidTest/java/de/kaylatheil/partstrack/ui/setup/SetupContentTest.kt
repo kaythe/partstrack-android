@@ -86,8 +86,9 @@ class SetupContentTest {
         compose.onNodeWithText("Show").performClick()
         assertEquals("pt_secret", shownToken())
 
-        compose.onNodeWithTag("check").performClick()
-        compose.onNodeWithTag("save").performClick()
+        // Scrolled to first: on a tablet in landscape, the keyboard can hide them.
+        compose.onNodeWithTag("check").performScrollTo().performClick()
+        compose.onNodeWithTag("save").performScrollTo().performClick()
         compose.onNodeWithText("Dark").performScrollTo().performClick()
         assertEquals(listOf("check", "save", "theme ${ThemeChoice.DARK}"), events)
     }

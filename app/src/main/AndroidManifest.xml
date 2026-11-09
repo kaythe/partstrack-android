@@ -20,6 +20,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 17 and later: needed to reach a server on the local network (see ui/common/LocalNetwork.kt). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <!-- No backups or transfers to another phone: the token's key stays on
          this device, so a copied token couldn't be decrypted anyway. -->

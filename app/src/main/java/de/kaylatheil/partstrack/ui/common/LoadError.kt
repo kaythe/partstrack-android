@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +38,7 @@ import de.kaylatheil.partstrack.data.api.ApiException
 import de.kaylatheil.partstrack.data.api.NetworkException
 import de.kaylatheil.partstrack.data.api.PartstrackException
 import de.kaylatheil.partstrack.data.api.UnexpectedResponseException
+import de.kaylatheil.partstrack.ui.scan.openAppSettings
 
 /** Why something couldn't be loaded, in the terms the screens show. */
 sealed interface LoadError {
@@ -79,6 +82,27 @@ fun ErrorView(error: LoadError, onRetry: () -> Unit, modifier: Modifier = Modifi
                 textAlign = TextAlign.Center,
             )
         }
+        if (error is LoadError.Unreachable) LocalNetworkHint()
         Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+    }
+}
+
+/**
+ * Says that the app may not use the local network, if so (Android 17 and
+ * later), with the way to allow it: a likely reason the server can't be
+ * reached, since the system then drops connections without an error.
+ */
+@Composable
+fun LocalNetworkHint(modifier: Modifier = Modifier) {
+    if (rememberLocalNetworkAllowed()) return
+    val context = LocalContext.current
+    Column(modifier.testTag("local_network_hint"), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            stringResource(R.string.local_network_not_allowed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = { openAppSettings(context) }) { Text(stringResource(R.string.app_settings)) }
     }
 }

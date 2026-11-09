@@ -215,4 +215,15 @@ class LocationsViewModelTest {
         viewModel.retry()
         assertEquals(emptySet<String>(), viewModel.state.value.collapsed)
     }
+
+    @Test
+    fun resumeAfterAFailedFirstLoadTriesAgain() = runTest {
+        locationsAnswer = { throw NetworkException(ConnectException("timeout")) }
+        val viewModel = newViewModel()
+        assertFalse(viewModel.state.value.loaded)
+        locationsAnswer = { locations }
+        viewModel.onResume()
+        assertTrue(viewModel.state.value.loaded)
+        assertEquals(locations, viewModel.state.value.locations)
+    }
 }

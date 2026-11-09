@@ -69,7 +69,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.kaylatheil.partstrack.R
+import de.kaylatheil.partstrack.data.settings.ServerAddress
 import de.kaylatheil.partstrack.data.settings.ThemeChoice
+import de.kaylatheil.partstrack.ui.common.LocalNetworkHint
+import de.kaylatheil.partstrack.ui.common.rememberLocalNetworkRequest
 import de.kaylatheil.partstrack.ui.scan.QrScanner
 import de.kaylatheil.partstrack.ui.scan.ScanOutcome
 import de.kaylatheil.partstrack.ui.scan.openAppSettings
@@ -85,6 +88,7 @@ fun SetupScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val askForLocalNetwork = rememberLocalNetworkRequest()
     LaunchedEffect(state.saved) {
         if (state.saved) onDone()
     }
@@ -101,7 +105,8 @@ fun SetupScreen(
         onAddressChange = viewModel::onAddressChange,
         onTokenChange = viewModel::onTokenChange,
         onThemeChange = viewModel::onThemeChange,
-        onCheck = viewModel::check,
+        // Checking reaches the server, which needs the local network permission on Android 17.
+        onCheck = { if (ServerAddress.parse(state.address) == null) viewModel.check() else askForLocalNetwork(viewModel::check) },
         onSave = viewModel::save,
         onBack = onBack,
         onScanToken = scanToken,
@@ -278,6 +283,7 @@ private fun CheckResultCard(result: CheckResult) {
         },
     ) {
         Text(text, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+        if (result is CheckResult.Unreachable) LocalNetworkHint(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
     }
 }
 
