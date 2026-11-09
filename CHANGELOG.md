@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-09
+
+The app is the same as 1.0.0; only how it is released changed.
+
+### Changed
+
+- Releases are built, tested and signed on GitHub, from the tagged source,
+  and the APK's SHA-256 is attached to the release as a file.
+
 ## [1.0.0] - 2026-11-09
 
 The first release.
@@ -80,5 +89,6 @@ The first release.
 - Release builds are shrunk with R8 and signed; they leave out the
   dependency information that F-Droid doesn't accept.
 
-[Unreleased]: https://github.com/kaythe/partstrack-android/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/kaythe/partstrack-android/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/kaythe/partstrack-android/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/kaythe/partstrack-android/releases/tag/v1.0.0

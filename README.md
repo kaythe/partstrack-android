@@ -58,8 +58,8 @@ signed with the same key.
 
 ### Making a release
 
-1. Set `versionCode` (one higher) and `versionName` in `app/build.gradle.kts`,
-   move the changes in `CHANGELOG.md` under a `## [X.Y.Z] - date` heading,
+1. Set `versionName` in `app/build.gradle.kts` (the `versionCode` follows from
+   it: X.Y.Z gives X * 10000 + Y * 100 + Z), move the changes in `CHANGELOG.md` under a `## [X.Y.Z] - date` heading,
    and update [docs/SBOM.md](docs/SBOM.md) if dependencies changed.
 2. Tag the commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 3. The [Release workflow](.github/workflows/release.yml) checks that the tag
