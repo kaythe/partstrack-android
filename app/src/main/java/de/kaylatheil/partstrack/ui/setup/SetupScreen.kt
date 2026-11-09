@@ -85,6 +85,7 @@ fun SetupScreen(
     firstStart: Boolean,
     onDone: () -> Unit,
     onBack: () -> Unit,
+    onOpenAbout: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -111,6 +112,7 @@ fun SetupScreen(
         onBack = onBack,
         onScanToken = scanToken,
         onOpenAppSettings = { openAppSettings(context) },
+        onOpenAbout = onOpenAbout,
     )
 }
 
@@ -128,6 +130,7 @@ fun SetupContent(
     onBack: () -> Unit,
     onScanToken: () -> Unit = {},
     onOpenAppSettings: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -206,6 +209,11 @@ fun SetupContent(
             Spacer(Modifier.padding(4.dp))
             Text(stringResource(R.string.theme), style = MaterialTheme.typography.titleSmall)
             ThemeChooser(state.theme, onThemeChange)
+
+            Spacer(Modifier.padding(4.dp))
+            TextButton(onClick = onOpenAbout, modifier = Modifier.testTag("open_about")) {
+                Text(stringResource(R.string.about_open))
+            }
         }
     }
 }

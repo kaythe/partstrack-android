@@ -30,6 +30,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
+import de.kaylatheil.partstrack.ui.about.AboutScreen
+import de.kaylatheil.partstrack.ui.about.License
+import de.kaylatheil.partstrack.ui.about.LicenseScreen
 import de.kaylatheil.partstrack.ui.common.rememberLocalNetworkRequest
 import de.kaylatheil.partstrack.ui.edit.EditPartScreen
 import de.kaylatheil.partstrack.ui.edit.EditPartViewModel
@@ -65,6 +68,14 @@ data class EditPartRoute(val id: Int)
 @Serializable
 data class SetupRoute(val firstStart: Boolean = false)
 
+/** The version, copyright and open-source licenses, from the settings. */
+@Serializable
+object AboutRoute
+
+/** A [License]'s text, by its name. */
+@Serializable
+data class LicenseRoute(val license: String)
+
 @Composable
 fun PartstrackNavHost(container: AppContainer, settings: Settings) {
     val navController = rememberNavController()
@@ -91,7 +102,17 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
                     }
                 },
                 onBack = { navController.popBackStack() },
+                onOpenAbout = { navController.navigate(AboutRoute) },
             )
+        }
+        composable<AboutRoute> {
+            AboutScreen(
+                onBack = { navController.popBackStack() },
+                onOpenLicense = { navController.navigate(LicenseRoute(it.name)) },
+            )
+        }
+        composable<LicenseRoute> { entry ->
+            LicenseScreen(License.valueOf(entry.toRoute<LicenseRoute>().license), onBack = { navController.popBackStack() })
         }
         composable<PartsRoute> { entry ->
             val partsViewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) }

@@ -239,4 +239,17 @@
     <string name="kind_other">Other</string>
     <string name="store_copy_help">Store a copy of the file it leads to on the server</string>
     <string name="link_not_stored">The link was added, but its file couldn\'t be stored: %1$s</string>
+
+    <!-- About and licenses -->
+    <string name="about_open">About and open-source licenses</string>
+    <string name="about_title">About</string>
+    <string name="about_app_name">partstrack for Android</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_copyright">Copyright © 2026 Kayla Theil</string>
+    <string name="about_gpl">This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It comes with absolutely no warranty.</string>
+    <string name="about_source">Source code: %1$s</string>
+    <string name="about_license">License</string>
+    <string name="about_components">Open-source components</string>
+    <string name="about_components_intro">partstrack is built with these components. Tap one to read its license.</string>
+    <string name="about_component_source">Source: %1$s</string>
 </resources>

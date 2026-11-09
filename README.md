@@ -7,8 +7,10 @@ inventory from a phone, through the JSON API of `partstrack-web`: scan a
 label, see what is in a drawer, take three parts out, add a photo of a new
 part.
 
-**Status:** in development; the app doesn't do anything useful yet. See
-[PLAN.md](PLAN.md) for the design and the steps planned.
+See [CHANGELOG.md](CHANGELOG.md) for what it does and [PLAN.md](PLAN.md) for
+the design. The APK is attached to each
+[release](https://github.com/kaythe/partstrack-android/releases); to install
+it, allow installing apps from the browser or file manager you open it with.
 
 ## Requirements
 
@@ -32,6 +34,33 @@ Open the folder in Android Studio, or build from the command line:
 On Windows, use `gradlew.bat` instead of `./gradlew`. Without Android Studio,
 tell Gradle where the SDK is with `ANDROID_HOME` or a `local.properties` file
 containing `sdk.dir=/path/to/sdk`.
+
+### Release builds
+
+`./gradlew assembleRelease` builds the release APK, shrunk with R8, in
+`app/build/outputs/apk/release/`. It is signed when the build finds the
+release key, from a `keystore.properties` file in the project's folder:
+
+```properties
+storeFile=/path/outside/the/repository/partstrack-release.jks
+storePassword=...
+keyAlias=partstrack
+keyPassword=...
+```
+
+or from the environment variables `PARTSTRACK_KEYSTORE` and
+`PARTSTRACK_KEYSTORE_PASSWORD` (and `PARTSTRACK_KEY_ALIAS` and
+`PARTSTRACK_KEY_PASSWORD` if they differ from `partstrack` and the keystore's
+password). Without either, the APK is built unsigned (`app-release-unsigned.apk`),
+as in CI. Neither the key nor `keystore.properties` ever goes into the
+repository, and the key must be kept safe: updates of the app have to be
+signed with the same key.
+
+A release: set `versionCode` and `versionName` in `app/build.gradle.kts`,
+move the changes in `CHANGELOG.md` under the new version, update
+[docs/SBOM.md](docs/SBOM.md) if dependencies changed, build, tag `vX.Y.Z` and
+attach `app-release.apk` (renamed to `partstrack-X.Y.Z.apk`) to a GitHub
+release for the tag.
 
 ### Testing against a server
 

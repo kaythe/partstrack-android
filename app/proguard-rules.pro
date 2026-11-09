@@ -14,5 +14,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# R8 rules for release builds. None needed yet; shrinking is enabled in the
-# release step.
+# R8 rules for release builds. None are needed so far: kotlinx.serialization,
+# OkHttp, Coil and the AndroidX libraries bring their own, and ZXing's scanner is
+# kept through the manifest. Check a release build on a device after adding
+# libraries or reflection.

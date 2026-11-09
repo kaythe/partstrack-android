@@ -65,6 +65,7 @@ class SetupContentTest {
                     onBack = { events += "back" },
                     onScanToken = { events += "scan token" },
                     onOpenAppSettings = { events += "app settings" },
+                    onOpenAbout = { events += "about" },
                 )
             }
         }
@@ -91,6 +92,13 @@ class SetupContentTest {
         compose.onNodeWithTag("save").performScrollTo().performClick()
         compose.onNodeWithText("Dark").performScrollTo().performClick()
         assertEquals(listOf("check", "save", "theme ${ThemeChoice.DARK}"), events)
+    }
+
+    @Test
+    fun opensAbout() {
+        show()
+        compose.onNodeWithTag("open_about").performScrollTo().performClick()
+        assertEquals(listOf("about"), events)
     }
 
     /** The token field's text as drawn (masked or not). */

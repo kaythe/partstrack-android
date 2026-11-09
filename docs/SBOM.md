@@ -4,8 +4,8 @@ What the release build of partstrack for Android is made of, with the
 licenses, and whether anything stands in the way of releasing it under
 GPL-3.0-or-later.
 
-- **Covers:** the release APK of version 0.1.0, built from `main` at
-  `6351821` (2026-11-09): every component on the `releaseRuntimeClasspath`
+- **Covers:** the release APK of version 1.0.0 (2026-11-09; the dependencies
+  are the same as when this list was first made, at `6351821`): every component on the `releaseRuntimeClasspath`
   (what Gradle packs into the APK), plus files in the APK that don't come
   from a Maven component. Build tools and test libraries, which are not
   distributed, are listed separately at the end.
@@ -26,9 +26,9 @@ GPL-3.0-or-later.
 ## Releasing under GPL-3.0
 
 **Nothing prevents it.** Every component's license is compatible with
-GPL-3.0, so the APK can be released under GPL-3.0-or-later. A few
-licenses ask for notices that the app doesn't give yet; those should be
-added before the first release (see "To do before releasing").
+GPL-3.0, so the APK can be released under GPL-3.0-or-later. The notices
+the licenses ask for are in the app, under Settings → "About and
+open-source licenses" (see "Notices in the app").
 
 | License | Components | Compatible with GPL-3.0? | What it asks for |
 |---|---|---|---|
@@ -57,21 +57,21 @@ Other things checked:
   call for the signing key: anyone can build and install their own
   version (after uninstalling the official one).
 
-### To do before releasing
+### Notices in the app
 
-1. **Third-party notices.** Add the notices the licenses above ask for, so
-   they come with the APK: an "Open-source licenses" entry in the settings
-   that shows the components with their licenses (Apache-2.0 text, the
-   Protocol Buffers BSD notice, and the Public Suffix List's MPL-2.0 notice
-   with where to get the list). Most AndroidX `LICENSE.txt` files are
-   already dropped from the APK when it is packed, so they don't cover it.
-2. **For F-Droid** (not a license matter): the Android Gradle Plugin adds a
-   block of dependency information, encrypted with a Google key, to signed
-   APKs. F-Droid doesn't accept that; it is turned off with
-   `android { dependenciesInfo { includeInApk = false; includeInBundle = false } }`.
-3. **Repeat this check** when dependencies change. Turning on R8 in the
-   release step removes unused code, but doesn't change which components
-   are included or what their licenses ask for.
+1. **Third-party notices.** Settings → "About and open-source licenses"
+   (`ui/about/AboutScreen.kt`) lists the components, grouped by project,
+   with their licenses, and shows the texts from `res/raw/`: Apache-2.0,
+   the Protocol Buffers BSD-3-Clause notice (with its copyright line,
+   which DataStore's copy leaves out), MPL-2.0 with where to get the
+   Public Suffix List, and the app's own GPL-3.0. When components change,
+   the list there has to follow.
+2. **For F-Droid** (not a license matter): the Android Gradle Plugin's
+   encrypted block of dependency information is turned off
+   (`dependenciesInfo` in `app/build.gradle.kts`).
+3. **Repeat this check** when dependencies change. R8 removes unused code
+   from the release build, but doesn't change which components are
+   included or what their licenses ask for.
 
 ## Direct dependencies
 

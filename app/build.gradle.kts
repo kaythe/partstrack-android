@@ -16,12 +16,42 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import java.util.Properties
+
 // Kotlin support is built into the Android Gradle Plugin (9.0 and later),
 // so only the compiler plugins for Compose and kotlinx.serialization are applied here.
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+/** Where the release key is and how to open it. */
+data class ReleaseKey(val storeFile: String, val storePassword: String, val keyAlias: String, val keyPassword: String)
+
+/**
+ * The release key, from keystore.properties in the project's root (never committed) or else
+ * from the environment variables PARTSTRACK_KEYSTORE, PARTSTRACK_KEYSTORE_PASSWORD and,
+ * optionally, PARTSTRACK_KEY_ALIAS (default "partstrack") and PARTSTRACK_KEY_PASSWORD
+ * (default the keystore's). Without either, the release APK is built unsigned.
+ */
+val releaseKey: ReleaseKey? = run {
+    val file = rootProject.file("keystore.properties")
+    if (file.isFile) {
+        val properties = Properties().apply { file.inputStream().use { load(it) } }
+        fun property(name: String) = properties.getProperty(name)?.takeIf { it.isNotBlank() }
+            ?: error("keystore.properties: $name is missing")
+        ReleaseKey(property("storeFile"), property("storePassword"), property("keyAlias"), property("keyPassword"))
+    } else {
+        fun env(name: String) = providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+        val store = env("PARTSTRACK_KEYSTORE")
+        val password = env("PARTSTRACK_KEYSTORE_PASSWORD")
+        if (store == null || password == null) {
+            null
+        } else {
+            ReleaseKey(store, password, env("PARTSTRACK_KEY_ALIAS") ?: "partstrack", env("PARTSTRACK_KEY_PASSWORD") ?: password)
+        }
+    }
 }
 
 android {
@@ -33,17 +63,36 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseKey != null) {
+            create("release") {
+                storeFile = file(releaseKey.storeFile)
+                storePassword = releaseKey.storePassword
+                keyAlias = releaseKey.keyAlias
+                keyPassword = releaseKey.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // R8 and release signing come with the release step.
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
         }
+    }
+
+    // The dependency list AGP would add to the APK is encrypted with a key of Google's, which
+    // F-Droid doesn't accept; docs/SBOM.md lists the dependencies instead.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     compileOptions {

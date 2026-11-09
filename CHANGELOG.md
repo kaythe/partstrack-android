@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-09
+
+The first release.
+
 ### Added
 
 - An app with partstrack's logo as its icon, in the device's colours.
@@ -70,3 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set up and before the first check. Without it, the check and screens that
   can't load say so and lead to the app's settings; they load again on
   return.
+- About, from the settings: the version, the license (GPL-3.0-or-later)
+  with a link to the source code, and the open-source components the app
+  is built with, with their licenses' texts.
+- Release builds are shrunk with R8 and signed; they leave out the
+  dependency information that F-Droid doesn't accept.
+
+[Unreleased]: https://github.com/kaythe/partstrack-android/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kaythe/partstrack-android/releases/tag/v1.0.0
