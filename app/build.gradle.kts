@@ -26,6 +26,19 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+/**
+ * The version code for a version name X.Y.Z: X * 10000 + Y * 100 + Z, so 1.2.3 is 10203.
+ * It grows with every version, as Android requires for updates, as long as Y and Z stay
+ * below 100. (1.0.0 still had 1.)
+ */
+fun versionCodeOf(name: String): Int {
+    val parts = Regex("""(\d+)\.(\d+)\.(\d+)""").matchEntire(name)?.destructured?.toList()?.map { it.toInt() }
+        ?: error("versionName '$name' isn't X.Y.Z")
+    val (major, minor, patch) = parts
+    require(minor < 100 && patch < 100) { "versionName '$name': minor and patch must stay below 100" }
+    return major * 10000 + minor * 100 + patch
+}
+
 /** Where the release key is and how to open it. */
 data class ReleaseKey(val storeFile: String, val storePassword: String, val keyAlias: String, val keyPassword: String)
 
@@ -62,8 +75,9 @@ android {
         applicationId = "de.kaylatheil.partstrack"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        // The release workflow reads this line to check the tag against it.
+        versionName = "1.0.1"
+        versionCode = versionCodeOf(versionName!!)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

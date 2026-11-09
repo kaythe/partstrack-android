@@ -56,11 +56,34 @@ as in CI. Neither the key nor `keystore.properties` ever goes into the
 repository, and the key must be kept safe: updates of the app have to be
 signed with the same key.
 
-A release: set `versionCode` and `versionName` in `app/build.gradle.kts`,
-move the changes in `CHANGELOG.md` under the new version, update
-[docs/SBOM.md](docs/SBOM.md) if dependencies changed, build, tag `vX.Y.Z` and
-attach `app-release.apk` (renamed to `partstrack-X.Y.Z.apk`) to a GitHub
-release for the tag.
+### Making a release
+
+1. Set `versionName` in `app/build.gradle.kts` (the `versionCode` follows from
+   it: X.Y.Z gives X * 10000 + Y * 100 + Z), move the changes in `CHANGELOG.md` under a `## [X.Y.Z] - date` heading,
+   and update [docs/SBOM.md](docs/SBOM.md) if dependencies changed.
+2. Tag the commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The [Release workflow](.github/workflows/release.yml) checks that the tag
+   matches `versionName` and that the changelog has the version, builds and
+   tests the signed APK, checks that it is signed with the release key, and
+   creates a draft GitHub release with `partstrack-X.Y.Z.apk`, its SHA-256,
+   and the changelog section as notes.
+4. Review the draft on GitHub and publish it.
+
+A failed run can be started again from the Actions tab ("Run workflow", with
+the tag); if the draft exists already, its files are replaced and its notes
+kept.
+
+The workflow needs two repository secrets (Settings → Secrets and variables →
+Actions): the keystore, base64-encoded, and its password. With the GitHub CLI,
+from the project's folder in Git Bash:
+
+```sh
+base64 -w0 ~/.android-keys/partstrack-release.jks | gh secret set PARTSTRACK_KEYSTORE_BASE64
+sed -n 's/^storePassword=//p' keystore.properties | tr -d '\r\n' | gh secret set PARTSTRACK_KEYSTORE_PASSWORD
+```
+
+The workflow knows the release certificate's fingerprint and refuses an APK
+signed with another key; change `CERT_SHA256` there if the key ever changes.
 
 ### Testing against a server
 
