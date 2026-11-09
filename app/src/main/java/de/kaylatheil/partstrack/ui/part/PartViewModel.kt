@@ -87,6 +87,11 @@ data class PartUiState(
     val dialogError: LoadError? = null,
     /** All locations, for the location fields; null until loaded (or if that failed). */
     val locations: List<Location>? = null,
+    /** Asking whether to delete the part. */
+    val confirmDelete: Boolean = false,
+    val deleting: Boolean = false,
+    /** The part is deleted: the screen should close. */
+    val deleted: Boolean = false,
 ) {
     /** What to show at [location]: the server's amount with the changes still on their way. */
     fun shownQuantity(location: String, quantity: Int): Int = quantity + (pending[location] ?: 0)
@@ -258,6 +263,34 @@ class PartViewModel(
                     state.copy(saving = false, dialog = null, dialogError = null)
                 } else {
                     state.copy(saving = false, dialogError = error)
+                }
+            }
+        }
+    }
+
+    fun askDelete() {
+        if (_state.value.canWrite && _state.value.part != null) _state.update { it.copy(confirmDelete = true) }
+    }
+
+    fun dismissDelete() {
+        _state.update { if (it.deleting) it else it.copy(confirmDelete = false) }
+    }
+
+    /** Deletes the part with its stock, history and attachments, after the changes still on their way. */
+    fun delete() {
+        if (_state.value.deleting) return
+        _state.update { it.copy(deleting = true) }
+        viewModelScope.launch {
+            changeLock.withLock {
+                val api = api ?: run {
+                    _state.update { it.copy(deleting = false, confirmDelete = false) }
+                    return@withLock
+                }
+                try {
+                    api.deletePart(partId)
+                    _state.update { it.copy(deleting = false, confirmDelete = false, deleted = true) }
+                } catch (e: PartstrackException) {
+                    _state.update { it.copy(deleting = false, confirmDelete = false, changeError = e.toLoadError()) }
                 }
             }
         }

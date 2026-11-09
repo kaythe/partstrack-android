@@ -23,6 +23,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -44,6 +46,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,7 +87,7 @@ import de.kaylatheil.partstrack.ui.common.message
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 
 @Composable
-fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPart: (Int) -> Unit) {
+fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPart: (Int) -> Unit, onAddPart: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
@@ -104,6 +107,7 @@ fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPar
             onErrorShown = viewModel::onErrorShown,
             onOpenSettings = onOpenSettings,
             onOpenPart = onOpenPart,
+            onAddPart = onAddPart,
         ),
     )
 }
@@ -121,6 +125,7 @@ class PartsActions(
     val onErrorShown: () -> Unit = {},
     val onOpenSettings: () -> Unit = {},
     val onOpenPart: (Int) -> Unit = {},
+    val onAddPart: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for previews and UI tests. */
@@ -148,6 +153,13 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            if (state.canWrite) {
+                FloatingActionButton(onClick = actions.onAddPart, modifier = Modifier.testTag("add_part")) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_part))
+                }
+            }
+        },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             SearchField(state.filter.query, actions.onQueryChange)
@@ -170,7 +182,7 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
                             CircularProgressIndicator(Modifier.testTag("loading"))
                         }
                     state.parts.isEmpty() -> NoParts(state.filter.isEmpty, actions.onClearFilters)
-                    else -> PartList(state.parts, actions.onOpenPart)
+                    else -> PartList(state.parts, actions.onOpenPart, roomForButton = state.canWrite)
                 }
             }
         }
@@ -301,8 +313,12 @@ private fun NoParts(noFilters: Boolean, onClearFilters: () -> Unit) {
 }
 
 @Composable
-private fun PartList(parts: List<Part>, onOpenPart: (Int) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag("parts")) {
+private fun PartList(parts: List<Part>, onOpenPart: (Int) -> Unit, roomForButton: Boolean) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().testTag("parts"),
+        // The last row can scroll out from under the add button.
+        contentPadding = PaddingValues(bottom = if (roomForButton) 88.dp else 0.dp),
+    ) {
         items(parts, key = { it.id }) { part ->
             PartRow(part, onClick = { onOpenPart(part.id) })
             HorizontalDivider()

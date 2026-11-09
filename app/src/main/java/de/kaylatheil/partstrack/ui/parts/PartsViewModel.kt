@@ -71,6 +71,8 @@ data class PartsUiState(
     val refreshing: Boolean = false,
     val error: LoadError? = null,
     val options: FilterOptions = FilterOptions(),
+    /** There is a token, so parts can be added. */
+    val canWrite: Boolean = false,
 )
 
 /**
@@ -94,7 +96,7 @@ class PartsViewModel(
         viewModelScope.launch {
             settings.map { it.serverUrl to it.token }.distinctUntilChanged().collect { (url, token) ->
                 api = url?.let { apiFactory(it, token) }
-                _state.update { it.copy(options = FilterOptions()) }
+                _state.update { it.copy(options = FilterOptions(), canWrite = url != null && token != null) }
                 load(withOptions = true)
             }
         }

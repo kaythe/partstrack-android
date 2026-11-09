@@ -137,4 +137,42 @@
     <string name="problem_bad_amount">Enter a whole number, at least 1.</string>
     <string name="problem_bad_amount_set">Enter a whole number.</string>
     <string name="problem_too_many" tools:ignore="PluralsCandidate">Only %1$d there.</string>
+
+    <!-- Adding, changing and deleting parts -->
+    <string name="add_part">Add part</string>
+    <string name="edit_part">Edit</string>
+    <string name="delete_part">Delete…</string>
+    <string name="delete_title">Delete %1$s?</string>
+    <string name="delete_text">This deletes the part with its stock, history, pictures and files. It can\'t be undone.</string>
+    <string name="delete">Delete</string>
+    <string name="new_part_title">New part</string>
+    <string name="edit_part_title">Edit part</string>
+    <string name="discard_title">Discard your changes?</string>
+    <string name="discard_text">What you entered here will be lost.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
+    <string name="field_name">Name</string>
+    <string name="field_description">Description</string>
+    <string name="field_min_quantity">Minimum quantity</string>
+    <string name="min_quantity_help">Below this, the part counts as low on stock. Leave empty for none.</string>
+    <string name="field_notes">Notes</string>
+    <string name="section_tags">Tags</string>
+    <string name="field_add_tag">Add a tag</string>
+    <string name="tags_help">Enter or a comma adds it. Tap a tag to remove it.</string>
+    <string name="remove_tag">Remove %1$s</string>
+    <string name="field_attribute_name">Name</string>
+    <string name="field_attribute_value">Value</string>
+    <string name="add_attribute">Add attribute</string>
+    <string name="remove_attribute">Remove attribute</string>
+    <string name="attributes_help">For example resistance 10k: then a search for resistance&gt;=1k finds it.</string>
+    <string name="section_initial_stock">Initial stock</string>
+    <string name="field_quantity">Quantity</string>
+    <string name="initial_stock_help">Optional: how many there are at the location.</string>
+    <string name="problem_name_missing">Enter a name.</string>
+    <string name="problem_name_hash">Names can\'t start with #.</string>
+    <string name="problem_bad_min_quantity">Enter a whole number, or leave it empty.</string>
+    <string name="problem_attribute_name_missing">Enter a name for this value.</string>
+    <string name="problem_attribute_name_repeated">This name is already above.</string>
+    <string name="problem_location_missing">Enter where they are.</string>
+    <string name="problem_quantity_missing">Enter how many are there.</string>
 </resources>

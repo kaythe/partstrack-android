@@ -120,6 +120,13 @@ class PartViewModelTest {
         override suspend fun setStock(partId: Int, location: String, quantity: Int, note: String): Part =
             changed("set $location $quantity $note".trim()) { it + (location to quantity) }
 
+        override suspend fun deletePart(id: Int) {
+            assertEquals(1, id)
+            changes += "delete"
+            changeGate.await()
+            changeFailure?.let { throw it }
+        }
+
         override suspend fun moveStock(partId: Int, from: String, to: String, quantity: Int?, note: String): Part =
             changed("move $from $to $quantity $note".trim()) {
                 val moved = quantity ?: it.getValue(from)
@@ -388,5 +395,62 @@ class PartViewModelTest {
         runCurrent()
         assertEquals(4, viewModel.state.value.shownAt("Shelf"))
         assertEquals(current, viewModel.state.value.part)
+    }
+
+    // -- deleting -------------------------------------------------------------
+
+    @Test
+    fun deletingNeedsAToken() = runTest {
+        val viewModel = newViewModel()
+        viewModel.askDelete()
+        assertFalse(viewModel.state.value.confirmDelete)
+    }
+
+    @Test
+    fun deleteAfterConfirming() = runTest {
+        withToken()
+        val viewModel = newViewModel()
+        viewModel.askDelete()
+        assertTrue(viewModel.state.value.confirmDelete)
+        viewModel.dismissDelete()
+        assertFalse(viewModel.state.value.confirmDelete)
+        assertTrue(changes.isEmpty())
+
+        viewModel.askDelete()
+        viewModel.delete()
+        val state = viewModel.state.value
+        assertTrue(state.deleted)
+        assertFalse(state.deleting)
+        assertEquals(listOf("delete"), changes)
+    }
+
+    @Test
+    fun deleteRefused() = runTest {
+        withToken()
+        changeFailure = ApiException(409, "this server shows a read-only copy; changes can't be saved")
+        val viewModel = newViewModel()
+        viewModel.askDelete()
+        viewModel.delete()
+        val state = viewModel.state.value
+        assertFalse(state.deleted)
+        assertFalse(state.confirmDelete)
+        assertEquals(LoadError.Server(409, "this server shows a read-only copy; changes can't be saved"), state.changeError)
+        assertEquals(part, state.part)
+    }
+
+    @Test
+    fun deleteWaitsForTheChangesBeforeIt() = runTest {
+        withToken()
+        val viewModel = newViewModel()
+        changeGate = CompletableDeferred()
+        viewModel.adjust("Shelf", 1)
+        viewModel.askDelete()
+        viewModel.delete()
+        assertTrue(viewModel.state.value.deleting)
+        assertEquals(listOf("adjust Shelf 1"), changes) // the delete hasn't been sent yet
+        changeGate.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("adjust Shelf 1", "delete"), changes)
+        assertTrue(viewModel.state.value.deleted)
     }
 }

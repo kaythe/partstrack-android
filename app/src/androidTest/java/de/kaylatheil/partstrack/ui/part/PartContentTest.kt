@@ -70,6 +70,10 @@ class PartContentTest {
                         onDismissDialog = { events += "dismiss" },
                         onSave = { events += "save $it" },
                         onOpenSettings = { events += "settings" },
+                        onEdit = { events += "edit" },
+                        onAskDelete = { events += "ask delete" },
+                        onDismissDelete = { events += "dismiss delete" },
+                        onDelete = { events += "delete" },
                     ),
                 )
             }
@@ -266,5 +270,34 @@ class PartContentTest {
         compose.onNodeWithTag("to").performTextInput("/Box")
         compose.onNodeWithTag("save").performClick()
         assertEquals(listOf("save ${StockRequest.Move("Shelf", "Shelf/Box", null)}"), events)
+    }
+
+    @Test
+    fun editAndDeleteNeedAToken() {
+        state = PartUiState(part = part, loading = false)
+        show()
+        compose.onNodeWithTag("edit").assertDoesNotExist()
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithTag("delete").assertDoesNotExist()
+    }
+
+    @Test
+    fun editAndDelete() {
+        state = PartUiState(part = part, loading = false, canWrite = true)
+        show()
+        compose.onNodeWithTag("edit").performClick()
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithTag("delete").performClick()
+        assertEquals(listOf("edit", "ask delete"), events)
+    }
+
+    @Test
+    fun deleteConfirmation() {
+        state = PartUiState(part = part, loading = false, canWrite = true, confirmDelete = true)
+        show()
+        compose.onNodeWithText("Delete 10k resistor?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithTag("confirm_delete").performClick()
+        assertEquals(listOf("dismiss delete", "delete"), events)
     }
 }

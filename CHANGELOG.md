@@ -37,3 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the existing ones or typed as a path, and new ones are created. The
   dialogs check the input before sending, keep it if the server refuses,
   and offer the settings when the token isn't accepted.
+- Adding, changing and deleting parts, with a token. "+" on the parts list
+  opens a form for a new part: name, description, manufacturer, MPN,
+  category and tags (with the server's as suggestions), package, minimum
+  quantity, attributes, notes, and where it is stored with how many. The
+  pencil on a part's page opens the same form for that part, which sends
+  only what changed, so changes others made meanwhile to other fields stay.
+  The form checks the input before sending and keeps it when the server
+  refuses, and asks before throwing input away. "Delete…" in the part's
+  menu deletes it after asking.

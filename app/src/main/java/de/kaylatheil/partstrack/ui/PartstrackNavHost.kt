@@ -27,6 +27,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
+import de.kaylatheil.partstrack.ui.edit.EditPartScreen
+import de.kaylatheil.partstrack.ui.edit.EditPartViewModel
 import de.kaylatheil.partstrack.ui.part.PartScreen
 import de.kaylatheil.partstrack.ui.part.PartViewModel
 import de.kaylatheil.partstrack.ui.parts.PartsScreen
@@ -40,6 +42,12 @@ object PartsRoute
 
 @Serializable
 data class PartRoute(val id: Int)
+
+@Serializable
+object AddPartRoute
+
+@Serializable
+data class EditPartRoute(val id: Int)
 
 /** Setup on [firstStart] (nothing to go back to), otherwise the settings. */
 @Serializable
@@ -71,6 +79,7 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
                 viewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) },
                 onOpenSettings = { navController.navigate(SetupRoute()) },
                 onOpenPart = { navController.navigate(PartRoute(it)) },
+                onAddPart = { navController.navigate(AddPartRoute) },
             )
         }
         composable<PartRoute> { entry ->
@@ -80,6 +89,26 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
                     PartViewModel(id, container.settingsStore.settings, container.apiFactory, container.attachmentDownloader)
                 },
                 onBack = { navController.popBackStack() },
+                onOpenSettings = { navController.navigate(SetupRoute()) },
+                onEdit = { navController.navigate(EditPartRoute(id)) },
+            )
+        }
+        composable<AddPartRoute> {
+            EditPartScreen(
+                viewModel = viewModel { EditPartViewModel(null, container.settingsStore.settings, container.apiFactory) },
+                // The new part's page takes the form's place, so Back goes to the list.
+                onSaved = { id -> navController.navigate(PartRoute(id)) { popUpTo<AddPartRoute> { inclusive = true } } },
+                onClose = { navController.popBackStack() },
+                onOpenSettings = { navController.navigate(SetupRoute()) },
+            )
+        }
+        composable<EditPartRoute> { entry ->
+            val id = entry.toRoute<EditPartRoute>().id
+            EditPartScreen(
+                viewModel = viewModel { EditPartViewModel(id, container.settingsStore.settings, container.apiFactory) },
+                // The part's page reloads when it shows again.
+                onSaved = { navController.popBackStack() },
+                onClose = { navController.popBackStack() },
                 onOpenSettings = { navController.navigate(SetupRoute()) },
             )
         }

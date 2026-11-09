@@ -54,6 +54,7 @@ class PartsContentTest {
                     state,
                     PartsActions(
                         onQueryChange = { events += "query $it" },
+                        onAddPart = { events += "add part" },
                         onTagChange = { events += "tag $it" },
                         onLocationChange = { events += "location $it" },
                         onLowOnlyChange = { events += "low $it" },
@@ -175,5 +176,20 @@ class PartsContentTest {
         compose.onNodeWithTag("filter_tag").performClick()
         compose.onNodeWithText("Any tag").performClick()
         assertEquals(listOf("tag null"), events)
+    }
+
+    @Test
+    fun addingNeedsAToken() {
+        state = PartsUiState(loaded = true, parts = parts)
+        show()
+        compose.onNodeWithTag("add_part").assertDoesNotExist()
+    }
+
+    @Test
+    fun addAPart() {
+        state = PartsUiState(loaded = true, parts = parts, canWrite = true)
+        show()
+        compose.onNodeWithTag("add_part").performClick()
+        assertEquals(listOf("add part"), events)
     }
 }

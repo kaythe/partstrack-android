@@ -47,7 +47,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -109,7 +111,7 @@ import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
 
 @Composable
-fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () -> Unit) {
+fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () -> Unit, onEdit: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -123,6 +125,9 @@ fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () 
         val request = state.open ?: return@LaunchedEffect
         viewModel.onOpened()
         if (!openElsewhere(context, request)) scope.launch { snackbar.showSnackbar(noApp) }
+    }
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) onBack()
     }
     PartContent(
         state = state,
@@ -139,6 +144,10 @@ fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () 
             onDismissDialog = viewModel::dismissDialog,
             onSave = viewModel::save,
             onOpenSettings = onOpenSettings,
+            onEdit = onEdit,
+            onAskDelete = viewModel::askDelete,
+            onDismissDelete = viewModel::dismissDelete,
+            onDelete = viewModel::delete,
         ),
     )
 }
@@ -180,6 +189,10 @@ class PartActions(
     val onDismissDialog: () -> Unit = {},
     val onSave: (StockRequest) -> Unit = {},
     val onOpenSettings: () -> Unit = {},
+    val onEdit: () -> Unit = {},
+    val onAskDelete: () -> Unit = {},
+    val onDismissDelete: () -> Unit = {},
+    val onDelete: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for UI tests. */
@@ -208,7 +221,14 @@ fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHost
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                actions = { if (part != null) MoreMenu(actions) },
+                actions = {
+                    if (part != null && state.canWrite) {
+                        IconButton(onClick = actions.onEdit, modifier = Modifier.testTag("edit")) {
+                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_part))
+                        }
+                    }
+                    if (part != null) MoreMenu(state.canWrite, actions)
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -229,6 +249,28 @@ fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHost
     }
     fullSize?.let { FullSizePicture(it, onClose = { fullSize = null }) }
     if (part != null) StockDialogs(part, state, actions)
+    if (part != null && state.confirmDelete) DeleteDialog(part, state.deleting, actions)
+}
+
+@Composable
+private fun DeleteDialog(part: Part, deleting: Boolean, actions: PartActions) {
+    AlertDialog(
+        onDismissRequest = actions.onDismissDelete,
+        title = { Text(stringResource(R.string.delete_title, part.name)) },
+        text = { Text(stringResource(R.string.delete_text)) },
+        confirmButton = {
+            TextButton(onClick = actions.onDelete, enabled = !deleting, modifier = Modifier.testTag("confirm_delete")) {
+                if (deleting) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.onDismissDelete, enabled = !deleting) { Text(stringResource(R.string.cancel)) }
+        },
+    )
 }
 
 private fun LoadError?.isUnauthorized() = this is LoadError.Server && status == 401
@@ -252,7 +294,7 @@ private fun StockDialogs(part: Part, state: PartUiState, actions: PartActions) {
 }
 
 @Composable
-private fun MoreMenu(actions: PartActions) {
+private fun MoreMenu(canWrite: Boolean, actions: PartActions) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -263,6 +305,13 @@ private fun MoreMenu(actions: PartActions) {
                 text = { Text(stringResource(R.string.open_in_web_interface)) },
                 onClick = { open = false; actions.onOpenInWebInterface() },
             )
+            if (canWrite) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete_part)) },
+                    onClick = { open = false; actions.onAskDelete() },
+                    modifier = Modifier.testTag("delete"),
+                )
+            }
         }
     }
 }
