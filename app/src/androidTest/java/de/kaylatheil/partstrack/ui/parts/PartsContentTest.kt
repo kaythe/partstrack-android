@@ -32,6 +32,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.kaylatheil.partstrack.data.api.Location
 import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.TagCount
+import de.kaylatheil.partstrack.data.labels.LabelLink
 import de.kaylatheil.partstrack.ui.common.LoadError
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 import org.junit.Assert.assertEquals
@@ -56,6 +57,9 @@ class PartsContentTest {
                         onQueryChange = { events += "query $it" },
                         onAddPart = { events += "add part" },
                         onOpenLocations = { events += "locations" },
+                        onScan = { events += "scan" },
+                        onScanHandled = { events += "scan handled" },
+                        onOpenAppSettings = { events += "app settings" },
                         onTagChange = { events += "tag $it" },
                         onLocationChange = { events += "location $it" },
                         onLowOnlyChange = { events += "low $it" },
@@ -200,5 +204,41 @@ class PartsContentTest {
         show()
         compose.onNodeWithTag("open_locations").performClick()
         assertEquals(listOf("locations"), events)
+    }
+
+    @Test
+    fun scanButton() {
+        state = PartsUiState(loaded = true, parts = parts)
+        show()
+        compose.onNodeWithTag("scan").performClick()
+        assertEquals(listOf("scan"), events)
+    }
+
+    @Test
+    fun labelOfAnotherServer() {
+        state = PartsUiState(loaded = true, parts = parts, scan = ScanResult.NotHere(LabelLink.OtherServer("http://other.lan:8080/")))
+        show()
+        compose.onNodeWithText("another partstrack server: http://other.lan:8080/", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Scan again").performClick()
+        assertEquals(listOf("scan handled", "scan"), events)
+    }
+
+    @Test
+    fun notALabel() {
+        state = PartsUiState(loaded = true, parts = parts, scan = ScanResult.NotHere(LabelLink.Unknown("WIFI:S:lab;;")))
+        show()
+        compose.onNodeWithText("isn't from a partstrack label", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("WIFI:S:lab;;").assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
+        assertEquals(listOf("scan handled"), events)
+    }
+
+    @Test
+    fun cameraRefused() {
+        state = PartsUiState(loaded = true, parts = parts, scan = ScanResult.NoCamera)
+        show()
+        compose.onNodeWithText("Scanning needs the camera", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("App settings").performClick()
+        assertEquals(listOf("scan handled", "app settings"), events)
     }
 }

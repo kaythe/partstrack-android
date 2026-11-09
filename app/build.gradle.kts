@@ -71,6 +71,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    // QR codes: zxing-android-embedded (Apache-2.0) works without Google Play Services.
+    implementation(libs.zxing.android.embedded)
+    implementation(libs.zxing.core)
     implementation(libs.okhttp)
     implementation(libs.okhttp.coroutines)
     implementation(libs.kotlinx.serialization.json)

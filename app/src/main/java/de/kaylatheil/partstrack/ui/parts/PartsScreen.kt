@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -59,7 +61,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -70,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -83,8 +88,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.kaylatheil.partstrack.R
 import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.StockEntry
+import de.kaylatheil.partstrack.data.labels.LabelLink
 import de.kaylatheil.partstrack.ui.common.ErrorView
 import de.kaylatheil.partstrack.ui.common.message
+import de.kaylatheil.partstrack.ui.scan.QrScanner
+import de.kaylatheil.partstrack.ui.scan.ScanOutcome
+import de.kaylatheil.partstrack.ui.scan.openAppSettings
+import de.kaylatheil.partstrack.ui.scan.rememberQrScanner
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 
 @Composable
@@ -96,9 +106,23 @@ fun PartsScreen(
     onOpenLocations: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
         onPauseOrDispose {}
+    }
+    val scan = rememberQrScanner(stringResource(R.string.scan_prompt)) { outcome ->
+        when (outcome) {
+            is ScanOutcome.Code -> viewModel.onScanned(outcome.text)
+            ScanOutcome.Cancelled -> {}
+            ScanOutcome.NoCamera -> viewModel.onCameraRefused()
+        }
+    }
+    LaunchedEffect(state.scan) {
+        (state.scan as? ScanResult.OpenPart)?.let {
+            viewModel.onScanHandled()
+            onOpenPart(it.id)
+        }
     }
     PartsContent(
         state = state,
@@ -116,6 +140,9 @@ fun PartsScreen(
             onOpenPart = onOpenPart,
             onAddPart = onAddPart,
             onOpenLocations = onOpenLocations,
+            onScan = scan,
+            onScanHandled = viewModel::onScanHandled,
+            onOpenAppSettings = { openAppSettings(context) },
         ),
     )
 }
@@ -135,6 +162,9 @@ class PartsActions(
     val onOpenPart: (Int) -> Unit = {},
     val onAddPart: () -> Unit = {},
     val onOpenLocations: () -> Unit = {},
+    val onScan: () -> Unit = {},
+    val onScanHandled: () -> Unit = {},
+    val onOpenAppSettings: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for previews and UI tests. */
@@ -150,11 +180,23 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
             actions.onErrorShown()
         }
     }
+    val cameraMessage = stringResource(R.string.scan_no_camera)
+    val appSettings = stringResource(R.string.app_settings)
+    LaunchedEffect(state.scan) {
+        if (state.scan == ScanResult.NoCamera) {
+            actions.onScanHandled()
+            val result = snackbar.showSnackbar(cameraMessage, actionLabel = appSettings, withDismissAction = true)
+            if (result == SnackbarResult.ActionPerformed) actions.onOpenAppSettings()
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = actions.onScan, modifier = Modifier.testTag("scan")) {
+                        Icon(Icons.Filled.QrScanner, contentDescription = stringResource(R.string.scan_label))
+                    }
                     IconButton(onClick = actions.onOpenLocations, modifier = Modifier.testTag("open_locations")) {
                         Icon(Icons.Filled.Place, contentDescription = stringResource(R.string.locations_title))
                     }
@@ -199,6 +241,36 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
             }
         }
     }
+    (state.scan as? ScanResult.NotHere)?.let { ScanMessage(it.link, actions) }
+}
+
+/** A scanned code that leads nowhere here: says why, and offers to scan again. */
+@Composable
+private fun ScanMessage(link: LabelLink, actions: PartsActions) {
+    AlertDialog(
+        onDismissRequest = actions.onScanHandled,
+        title = { Text(stringResource(R.string.scan_not_here_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                when (link) {
+                    is LabelLink.OtherServer -> Text(stringResource(R.string.scan_other_server, link.server))
+                    is LabelLink.Unknown -> {
+                        Text(stringResource(R.string.scan_unknown))
+                        SelectionContainer {
+                            Text(link.text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("scanned_text"))
+                        }
+                    }
+                    else -> {}
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { actions.onScanHandled(); actions.onScan() }) { Text(stringResource(R.string.scan_again)) }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.onScanHandled) { Text(stringResource(R.string.close)) }
+        },
+    )
 }
 
 @Composable

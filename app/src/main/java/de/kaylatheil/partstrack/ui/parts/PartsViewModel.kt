@@ -26,6 +26,7 @@ import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.PartstrackApi
 import de.kaylatheil.partstrack.data.api.PartstrackException
 import de.kaylatheil.partstrack.data.api.TagCount
+import de.kaylatheil.partstrack.data.labels.LabelLink
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.ui.common.LoadError
 import de.kaylatheil.partstrack.ui.common.toLoadError
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl
 
 /** What the list shows: the search text (sent as it is, so attribute filters work) and filters. */
 data class PartsFilter(
@@ -73,7 +75,20 @@ data class PartsUiState(
     val options: FilterOptions = FilterOptions(),
     /** There is a token, so parts can be added. */
     val canWrite: Boolean = false,
+    /** A scanned label to act on, once; null when there is none. */
+    val scan: ScanResult? = null,
 )
+
+/** What a scanned QR code leads to. A location's label filters the list right away. */
+sealed interface ScanResult {
+    data class OpenPart(val id: Int) : ScanResult
+
+    /** Nothing to open: a label from another server, or no label at all. */
+    data class NotHere(val link: LabelLink) : ScanResult
+
+    /** The camera may not be used, so nothing could be scanned. */
+    data object NoCamera : ScanResult
+}
 
 /**
  * The parts list. It loads from the server in [settings], again when the
@@ -88,6 +103,7 @@ class PartsViewModel(
     val state: StateFlow<PartsUiState> = _state.asStateFlow()
 
     private var api: PartstrackApi? = null
+    private var server: HttpUrl? = null
     private var loadJob: Job? = null
     private var searchJob: Job? = null
     private var optionsJob: Job? = null
@@ -95,6 +111,7 @@ class PartsViewModel(
     init {
         viewModelScope.launch {
             settings.map { it.serverUrl to it.token }.distinctUntilChanged().collect { (url, token) ->
+                server = url
                 api = url?.let { apiFactory(it, token) }
                 _state.update { it.copy(options = FilterOptions(), canWrite = url != null && token != null) }
                 load(withOptions = true)
@@ -124,6 +141,25 @@ class PartsViewModel(
 
     /** Everything at [location] (a full path) and in its sublocations, whatever was searched before. */
     fun showLocation(location: String) = changeFilter { PartsFilter(location = location) }
+
+    /** A QR code was scanned: a part's label opens the part, a location's shows what is there. */
+    fun onScanned(text: String) {
+        val server = server ?: return
+        when (val link = LabelLink.parse(text, server)) {
+            is LabelLink.Part -> _state.update { it.copy(scan = ScanResult.OpenPart(link.id)) }
+            is LabelLink.Location -> showLocation(link.path)
+            is LabelLink.OtherServer, is LabelLink.Unknown -> _state.update { it.copy(scan = ScanResult.NotHere(link)) }
+        }
+    }
+
+    fun onCameraRefused() {
+        _state.update { it.copy(scan = ScanResult.NoCamera) }
+    }
+
+    /** The screen has acted on the scan (opened the part, or the message was closed). */
+    fun onScanHandled() {
+        _state.update { it.copy(scan = null) }
+    }
 
     /** Pull to refresh: the list and the filter choices. */
     fun refresh() {

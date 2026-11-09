@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -69,6 +70,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.kaylatheil.partstrack.R
 import de.kaylatheil.partstrack.data.settings.ThemeChoice
+import de.kaylatheil.partstrack.ui.scan.QrScanner
+import de.kaylatheil.partstrack.ui.scan.ScanOutcome
+import de.kaylatheil.partstrack.ui.scan.openAppSettings
+import de.kaylatheil.partstrack.ui.scan.rememberQrScanner
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 
 @Composable
@@ -79,8 +84,16 @@ fun SetupScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     LaunchedEffect(state.saved) {
         if (state.saved) onDone()
+    }
+    val scanToken = rememberQrScanner(stringResource(R.string.scan_token_prompt)) { outcome ->
+        when (outcome) {
+            is ScanOutcome.Code -> viewModel.onTokenScanned(outcome.text)
+            ScanOutcome.Cancelled -> {}
+            ScanOutcome.NoCamera -> viewModel.onCameraRefused()
+        }
     }
     SetupContent(
         state = state,
@@ -91,6 +104,8 @@ fun SetupScreen(
         onCheck = viewModel::check,
         onSave = viewModel::save,
         onBack = onBack,
+        onScanToken = scanToken,
+        onOpenAppSettings = { openAppSettings(context) },
     )
 }
 
@@ -106,6 +121,8 @@ fun SetupContent(
     onCheck: () -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit,
+    onScanToken: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -153,6 +170,7 @@ fun SetupContent(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next, autoCorrectEnabled = false),
             )
             TokenField(state, onTokenChange)
+            TokenScan(state.tokenScanProblem, onScanToken, onOpenAppSettings)
             if (state.tokenOverPlainHttp) {
                 Text(
                     stringResource(R.string.token_plain_http),
@@ -183,6 +201,31 @@ fun SetupContent(
             Spacer(Modifier.padding(4.dp))
             Text(stringResource(R.string.theme), style = MaterialTheme.typography.titleSmall)
             ThemeChooser(state.theme, onThemeChange)
+        }
+    }
+}
+
+/** Fills in the token from the QR code 'partstrack token add' shows, instead of typing it. */
+@Composable
+private fun TokenScan(problem: TokenScanProblem?, onScanToken: () -> Unit, onOpenAppSettings: () -> Unit) {
+    TextButton(onClick = onScanToken, modifier = Modifier.testTag("scan_token")) {
+        Icon(Icons.Filled.QrScanner, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+        Text(stringResource(R.string.scan_token))
+    }
+    when (problem) {
+        null -> {}
+        TokenScanProblem.NOT_A_TOKEN -> Text(
+            stringResource(R.string.scan_not_a_token),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TokenScanProblem.NO_CAMERA -> Column {
+            Text(
+                stringResource(R.string.scan_no_camera),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onOpenAppSettings) { Text(stringResource(R.string.app_settings)) }
         }
     }
 }

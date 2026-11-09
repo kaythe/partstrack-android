@@ -25,6 +25,7 @@ import de.kaylatheil.partstrack.data.api.ApiException
 import de.kaylatheil.partstrack.data.api.NetworkException
 import de.kaylatheil.partstrack.data.api.PartstrackApi
 import de.kaylatheil.partstrack.data.api.UnexpectedResponseException
+import de.kaylatheil.partstrack.data.labels.LabelLink
 import de.kaylatheil.partstrack.data.settings.ServerAddress
 import de.kaylatheil.partstrack.data.settings.SettingsStore
 import de.kaylatheil.partstrack.data.settings.ThemeChoice
@@ -65,6 +66,14 @@ sealed interface CheckResult {
     data class Failed(val message: String) : CheckResult
 }
 
+enum class TokenScanProblem {
+    /** The code isn't an API token (e.g. a part's label). */
+    NOT_A_TOKEN,
+
+    /** The camera may not be used. */
+    NO_CAMERA,
+}
+
 data class SetupUiState(
     val loading: Boolean = true,
     val address: String = "",
@@ -79,6 +88,8 @@ data class SetupUiState(
     val saved: Boolean = false,
     /** The token couldn't be encrypted for storage (the Keystore failed), so nothing was saved. */
     val saveFailed: Boolean = false,
+    /** Scanning the token's QR code didn't give a token. */
+    val tokenScanProblem: TokenScanProblem? = null,
 ) {
     /** The token would travel unencrypted. */
     val tokenOverPlainHttp: Boolean
@@ -116,7 +127,27 @@ class SetupViewModel(
 
     fun onTokenChange(token: String) {
         checkJob?.cancel()
-        _state.update { it.copy(token = token, savedTokenUnreadable = false, checking = false, result = null) }
+        _state.update {
+            it.copy(token = token, savedTokenUnreadable = false, checking = false, result = null, tokenScanProblem = null)
+        }
+    }
+
+    /**
+     * A QR code was scanned for the token ('partstrack token add' shows one).
+     * With an address entered, it is checked right away.
+     */
+    fun onTokenScanned(text: String) {
+        val token = LabelLink.token(text)
+        if (token == null) {
+            _state.update { it.copy(tokenScanProblem = TokenScanProblem.NOT_A_TOKEN) }
+            return
+        }
+        onTokenChange(token)
+        if (ServerAddress.parse(_state.value.address) != null) check()
+    }
+
+    fun onCameraRefused() {
+        _state.update { it.copy(tokenScanProblem = TokenScanProblem.NO_CAMERA) }
     }
 
     /** The theme applies at once, without saving the rest. */

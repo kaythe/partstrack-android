@@ -197,4 +197,17 @@
     <string name="parent_help">Moving a location takes everything in it along.</string>
     <string name="problem_name_slash">Names can\'t contain /, which separates the names in a path.</string>
     <string name="problem_parent_inside">A location can\'t be moved into itself.</string>
+
+    <!-- Scanning QR codes -->
+    <string name="scan_label">Scan a label</string>
+    <string name="scan_prompt">Point the camera at the QR code on a part\'s or a location\'s label.</string>
+    <string name="scan_not_here_title">Nothing to open here</string>
+    <string name="scan_other_server">This label belongs to another partstrack server: %1$s. To use it, set that server up in the settings.</string>
+    <string name="scan_unknown">This QR code isn\'t from a partstrack label. It says:</string>
+    <string name="scan_again">Scan again</string>
+    <string name="scan_no_camera">Scanning needs the camera. Allow it in the app\'s settings.</string>
+    <string name="app_settings">App settings</string>
+    <string name="scan_token">Scan the token\'s QR code</string>
+    <string name="scan_token_prompt">Point the camera at the QR code that \'partstrack token add\' shows.</string>
+    <string name="scan_not_a_token">That QR code isn\'t an API token. \'partstrack token add\' shows one when it creates a token.</string>
 </resources>

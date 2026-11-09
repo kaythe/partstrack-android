@@ -25,6 +25,7 @@ import de.kaylatheil.partstrack.data.api.Location
 import de.kaylatheil.partstrack.data.api.NetworkException
 import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.TagCount
+import de.kaylatheil.partstrack.data.labels.LabelLink
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.data.settings.ThemeChoice
 import de.kaylatheil.partstrack.ui.common.LoadError
@@ -274,5 +275,48 @@ class PartsViewModelTest {
         )
 
         val allParts = listOf(part(1, "10k resistor", 117), part(2, "NE555", 3, low = true))
+    }
+
+    // -- scanning labels ------------------------------------------------------
+
+    @Test
+    fun scanAPartsLabel() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onScanned("http://parts.lan:8080/parts/12")
+        assertEquals(ScanResult.OpenPart(12), viewModel.state.value.scan)
+        viewModel.onScanHandled()
+        assertNull(viewModel.state.value.scan)
+    }
+
+    @Test
+    fun scanALocationsLabel() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onTagChange("smd")
+        searches.clear()
+        viewModel.onScanned("http://parts.lan:8080/?location=/Cabinet/Drawer%201")
+        assertNull(viewModel.state.value.scan) // nothing else to do: the list shows what is there
+        assertEquals(PartsFilter(location = "Cabinet/Drawer 1"), viewModel.state.value.filter)
+        assertEquals(listOf(Search("", null, "Cabinet/Drawer 1", null, false)), searches)
+    }
+
+    @Test
+    fun scanAnotherServersLabel() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onScanned("http://other.lan:8080/parts/12")
+        assertEquals(ScanResult.NotHere(LabelLink.OtherServer("http://other.lan:8080/")), viewModel.state.value.scan)
+    }
+
+    @Test
+    fun scanSomethingElse() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onScanned("WIFI:S:lab;;")
+        assertEquals(ScanResult.NotHere(LabelLink.Unknown("WIFI:S:lab;;")), viewModel.state.value.scan)
+    }
+
+    @Test
+    fun cameraRefused() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onCameraRefused()
+        assertEquals(ScanResult.NoCamera, viewModel.state.value.scan)
     }
 }

@@ -276,4 +276,43 @@ class SetupViewModelTest {
         assertFalse(SetupUiState(address = "parts.lan:8080", token = "").tokenOverPlainHttp)
         assertFalse(SetupUiState(address = "https://parts.lan/", token = "pt_x").tokenOverPlainHttp)
     }
+
+    // -- the token's QR code ----------------------------------------------------
+
+    @Test
+    fun scannedTokenIsCheckedAtOnce() = runTest {
+        api = server { tokenInfo() }
+        val viewModel = loaded()
+        viewModel.onAddressChange("parts.lan:8080")
+        viewModel.onTokenScanned("pt_scanned\n")
+        assertEquals("pt_scanned", viewModel.state.value.token)
+        assertEquals(CheckResult.Ready("1.4.0", "phone"), viewModel.state.first { it.result != null }.result)
+        assertEquals("pt_scanned", created.single().second)
+    }
+
+    @Test
+    fun scannedTokenWithoutAddress() = runTest {
+        val viewModel = loaded()
+        viewModel.onTokenScanned("pt_scanned")
+        assertEquals("pt_scanned", viewModel.state.value.token)
+        assertTrue(created.isEmpty()) // nothing to check it with yet
+    }
+
+    @Test
+    fun scannedSomethingElse() = runTest {
+        val viewModel = loaded()
+        viewModel.onTokenChange("pt_typed")
+        viewModel.onTokenScanned("http://parts.lan:8080/parts/12")
+        assertEquals(TokenScanProblem.NOT_A_TOKEN, viewModel.state.value.tokenScanProblem)
+        assertEquals("pt_typed", viewModel.state.value.token) // what was there stays
+        viewModel.onTokenChange("pt_other")
+        assertNull(viewModel.state.value.tokenScanProblem)
+    }
+
+    @Test
+    fun cameraRefusedForTheToken() = runTest {
+        val viewModel = loaded()
+        viewModel.onCameraRefused()
+        assertEquals(TokenScanProblem.NO_CAMERA, viewModel.state.value.tokenScanProblem)
+    }
 }

@@ -52,3 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there and in its sublocations. With a token, locations can be added (at
   the top or inside another), renamed, described, moved with everything in
   them, and deleted when empty; the server's reason shows when it refuses.
+- Scanning labels: the scan button on the parts list reads the QR code on a
+  partstrack label. A part's label opens the part, a location's label shows
+  what is stored there. Labels of another server, and other QR codes, say
+  so instead. Scanning uses zxing, without Google Play Services.
+- The settings can scan the API token's QR code, which 'partstrack token
+  add' shows, instead of typing it; the token is checked right away.

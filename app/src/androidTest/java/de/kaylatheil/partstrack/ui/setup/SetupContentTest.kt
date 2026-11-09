@@ -63,6 +63,8 @@ class SetupContentTest {
                     onCheck = { events += "check" },
                     onSave = { events += "save" },
                     onBack = { events += "back" },
+                    onScanToken = { events += "scan token" },
+                    onOpenAppSettings = { events += "app settings" },
                 )
             }
         }
@@ -131,5 +133,27 @@ class SetupContentTest {
         compose.onNodeWithText("This isn't a web address.").assertIsDisplayed()
         compose.onNodeWithText("can't be read any more", substring = true).assertIsDisplayed()
         compose.onNodeWithText("couldn't be stored securely", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun scanTheToken() {
+        show()
+        compose.onNodeWithTag("scan_token").performClick()
+        assertEquals(listOf("scan token"), events)
+    }
+
+    @Test
+    fun scannedSomethingElse() {
+        state = state.copy(tokenScanProblem = TokenScanProblem.NOT_A_TOKEN)
+        show()
+        compose.onNodeWithText("That QR code isn't an API token", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun noCameraForTheToken() {
+        state = state.copy(tokenScanProblem = TokenScanProblem.NO_CAMERA)
+        show()
+        compose.onNodeWithText("App settings").performClick()
+        assertEquals(listOf("app settings"), events)
     }
 }

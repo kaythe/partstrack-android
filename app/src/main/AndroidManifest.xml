@@ -43,6 +43,14 @@
             </intent-filter>
         </activity>
 
+        <!-- zxing's scanner, kept clear of the system bars. It turns with the phone,
+             unlike the library's own entry, which locks it to landscape. -->
+        <activity
+            android:name=".ui.scan.ScannerActivity"
+            android:stateNotNeeded="true"
+            android:theme="@style/zxing_CaptureTheme"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+
         <!-- Shares downloaded attachments with the app that opens them. -->
         <provider
             android:name="androidx.core.content.FileProvider"
