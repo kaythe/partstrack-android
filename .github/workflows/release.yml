@@ -1,0 +1,140 @@
+# partstrack - a small inventory for electronic parts
+# Copyright (C) 2026 Kayla Theil (accounts@kaylatheil.de)
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Builds the signed release APK for a version tag (vX.Y.Z) and puts it into a
+# draft GitHub release, to be reviewed and published by hand. Needs the
+# repository secrets PARTSTRACK_KEYSTORE_BASE64 (the release keystore,
+# base64-encoded) and PARTSTRACK_KEYSTORE_PASSWORD; see README.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v1.0.0"
+        required: true
+
+permissions:
+  contents: write # to create the release
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  # The release key's certificate: the APK must be signed with exactly this one.
+  CERT_SHA256: cf98fd2ba27e297a3d631b5218af1e348026c6c30e5c8d06ce0fcc76891861d3
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Check the tag, version and changelog
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'$TAG' is not a version tag like v1.0.0"; exit 1 ;;
+          esac
+          VERSION="${TAG#v}"
+          NAME=$(sed -nE 's/^ *versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)
+          if [ "$NAME" != "$VERSION" ]; then
+            echo "::error::The tag is $TAG, but versionName in app/build.gradle.kts is $NAME"; exit 1
+          fi
+          # The changelog's section for this version, without its heading, as the release notes.
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found && /^\[[^]]+\]: / { exit }
+            found && /^[[:space:]]*$/ { blank++; next }
+            found { if (started) for (; blank > 0; blank--) print ""; blank = 0; started = 1; print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/changes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/changes.md"; then
+            echo "::error::CHANGELOG.md has no section '## [$VERSION]'"; exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          # Release builds don't write to the cache the other builds use.
+          cache-read-only: true
+
+      - name: Get the release key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PARTSTRACK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::The secret PARTSTRACK_KEYSTORE_BASE64 is missing"; exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "PARTSTRACK_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      # Builds and signs the release APK, runs the JVM tests and lint, as in CI.
+      - name: Build and test
+        env:
+          PARTSTRACK_KEYSTORE_PASSWORD: ${{ secrets.PARTSTRACK_KEYSTORE_PASSWORD }}
+        run: ./gradlew build
+
+      - name: Remove the release key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Check the signature
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK" ]; then
+            echo "::error::No signed APK; is PARTSTRACK_KEYSTORE_PASSWORD set?"; exit 1
+          fi
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          echo "$CERTS"
+          if ! echo "$CERTS" | grep -q "certificate SHA-256 digest: $CERT_SHA256"; then
+            echo "::error::The APK isn't signed with the release key"; exit 1
+          fi
+          mkdir -p dist
+          cp "$APK" "dist/partstrack-$VERSION.apk"
+          (cd dist && sha256sum "partstrack-$VERSION.apk" > "partstrack-$VERSION.apk.sha256")
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK_SHA256=$(cut -d' ' -f1 "dist/partstrack-$VERSION.apk.sha256")
+          CERT=$(echo "$CERT_SHA256" | tr a-f A-F | sed 's/../&:/g; s/:$//')
+          {
+            cat "$RUNNER_TEMP/changes.md"
+            echo
+            echo "## Installing"
+            echo
+            echo "Download \`partstrack-$VERSION.apk\` below and open it on the phone (Android 8.0 or later); installing apps from the browser or file manager may have to be allowed first."
+            echo
+            echo "- SHA-256 of the APK: \`$APK_SHA256\`"
+            echo "- Signing certificate (SHA-256): \`$CERT\`"
+          } > "$RUNNER_TEMP/notes.md"
+          FILES=("dist/partstrack-$VERSION.apk" "dist/partstrack-$VERSION.apk.sha256")
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Built again: replace the files, keep the notes as they may have been edited.
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" "${FILES[@]}" --draft --verify-tag \
+              --title "partstrack for Android $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
