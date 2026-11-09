@@ -58,3 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so instead. Scanning uses zxing, without Google Play Services.
 - The settings can scan the API token's QR code, which 'partstrack token
   add' shows, instead of typing it; the token is checked right away.
+- Attachments, with a token: a part's page can take a photo (at full size;
+  the copy on the phone is deleted once it is uploaded), upload any file
+  from the phone, and add a link, with a copy of the file it leads to
+  stored on the server, or not. Uploads show their progress and can be
+  cancelled, or tried again when they fail. Files and links can be
+  removed, from their menu or from the full-size picture, and a link's
+  file can be stored later.

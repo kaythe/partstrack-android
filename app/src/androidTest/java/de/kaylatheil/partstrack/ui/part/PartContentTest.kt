@@ -33,6 +33,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.kaylatheil.partstrack.data.api.Attachment
@@ -74,6 +75,17 @@ class PartContentTest {
                         onAskDelete = { events += "ask delete" },
                         onDismissDelete = { events += "dismiss delete" },
                         onDelete = { events += "delete" },
+                        onTakePhoto = { events += "photo" },
+                        onChooseFile = { events += "file" },
+                        onCancelUpload = { events += "cancel upload" },
+                        onRetryUpload = { events += "retry upload" },
+                        onShowLinkDialog = { events += "link dialog" },
+                        onDismissLinkDialog = { events += "dismiss link" },
+                        onAddLink = { url, kind, download -> events += "link $url $kind $download" },
+                        onStoreCopy = { events += "store ${it.name}" },
+                        onAskRemove = { events += "ask remove ${it.name}" },
+                        onDismissRemove = { events += "dismiss remove" },
+                        onRemove = { events += "remove" },
                     ),
                 )
             }
@@ -299,5 +311,123 @@ class PartContentTest {
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithTag("confirm_delete").performClick()
         assertEquals(listOf("dismiss delete", "delete"), events)
+    }
+
+    // -- attachments ------------------------------------------------------------
+
+    private fun scrollToTag(tag: String) {
+        compose.onNodeWithTag("part").performScrollToNode(hasTestTag(tag))
+    }
+
+    @Test
+    fun attachmentButtonsNeedAToken() {
+        state = PartUiState(part = part, loading = false)
+        show()
+        scrollTo("Recent changes")
+        compose.onNodeWithTag("take_photo").assertDoesNotExist()
+        compose.onNodeWithTag("add_link").assertDoesNotExist()
+    }
+
+    @Test
+    fun attachmentButtons() {
+        state = PartUiState(part = part, loading = false, canWrite = true)
+        show()
+        scrollToTag("take_photo")
+        compose.onNodeWithTag("take_photo").performClick()
+        compose.onNodeWithTag("choose_file").performClick()
+        compose.onNodeWithTag("add_link").performClick()
+        assertEquals(listOf("photo", "file", "link dialog"), events)
+    }
+
+    @Test
+    fun aPartWithoutAttachmentsGetsTheSectionToo() {
+        state = PartUiState(part = part.copy(attachments = emptyList()), loading = false, canWrite = true)
+        show()
+        scrollTo("Pictures and files")
+        scrollToTag("take_photo")
+    }
+
+    @Test
+    fun uploadInProgress() {
+        state = PartUiState(part = part, loading = false, canWrite = true, upload = UploadProgress("photo.jpg", 2_500_000, 5_000_000))
+        show()
+        scrollToTag("upload")
+        compose.onNodeWithText("Uploading photo.jpg").assertIsDisplayed()
+        compose.onNodeWithText("2.5 of 5.0 MB").assertIsDisplayed()
+        compose.onNodeWithTag("take_photo").assertIsNotEnabled() // one at a time
+        compose.onNodeWithTag("cancel_upload").performClick()
+        assertEquals(listOf("cancel upload"), events)
+    }
+
+    @Test
+    fun uploadFailed() {
+        state = PartUiState(
+            part = part, loading = false, canWrite = true,
+            upload = UploadProgress("photo.jpg", 0, 5_000_000, LoadError.Server(413, "the request is larger than 100 MB")),
+        )
+        show()
+        scrollToTag("upload")
+        compose.onNodeWithText("photo.jpg couldn't be uploaded.").assertIsDisplayed()
+        compose.onNodeWithText("the request is larger than 100 MB").assertIsDisplayed()
+        compose.onNodeWithTag("retry_upload").performClick()
+        compose.onNodeWithText("Give up").performClick()
+        assertEquals(listOf("retry upload", "cancel upload"), events)
+    }
+
+    @Test
+    fun linkDialog() {
+        state = PartUiState(part = part, loading = false, canWrite = true, linkDialog = true)
+        show()
+        compose.onNodeWithTag("confirm_link").assertIsNotEnabled()
+        compose.onNodeWithTag("link").performTextInput("example.com/a.pdf")
+        compose.onNodeWithText("Enter a whole link", substring = true).assertIsDisplayed()
+        compose.onNodeWithTag("confirm_link").assertIsNotEnabled()
+        compose.onNodeWithTag("link").performTextClearance()
+        compose.onNodeWithTag("link").performTextInput("https://www.example.com/a.pdf")
+        compose.onNodeWithText("Datasheet").performClick()
+        compose.onNodeWithTag("store_copy").performClick() // only the link
+        compose.onNodeWithTag("confirm_link").performClick()
+        assertEquals(listOf("link https://www.example.com/a.pdf DATASHEET false"), events)
+    }
+
+    @Test
+    fun fileMenu() {
+        state = PartUiState(part = part, loading = false, canWrite = true)
+        show()
+        scrollTo("rc0603.pdf")
+        compose.onNodeWithContentDescription("More for rc0603.pdf").performClick()
+        compose.onNodeWithText("Store a copy").performClick() // a link: its file can be stored
+        compose.onNodeWithContentDescription("More for notes.txt").performClick()
+        compose.onNodeWithText("Store a copy").assertDoesNotExist() // already stored
+        compose.onNodeWithText("Remove…").performClick()
+        assertEquals(listOf("store rc0603.pdf", "ask remove notes.txt"), events)
+    }
+
+    @Test
+    fun removeDialog() {
+        state = PartUiState(part = part, loading = false, canWrite = true, removing = notes)
+        show()
+        compose.onNodeWithText("Remove notes.txt?").assertIsDisplayed()
+        compose.onNodeWithText("The file is deleted from the server.").assertIsDisplayed()
+        compose.onNodeWithTag("confirm_remove").performClick()
+        assertEquals(listOf("remove"), events)
+    }
+
+    @Test
+    fun removeAPictureFromFullSize() {
+        state = PartUiState(part = part, loading = false, canWrite = true)
+        show()
+        scrollTo("Pictures")
+        compose.onNodeWithTag("picture").performClick()
+        compose.onNodeWithContentDescription("Remove…").performClick()
+        compose.onNodeWithTag("full_size").assertDoesNotExist()
+        assertEquals(listOf("ask remove photo.png"), events)
+    }
+
+    @Test
+    fun linkWithoutItsFile() {
+        state = PartUiState(part = part, loading = false, canWrite = true, linkNotStored = LinkNotStored("leads to a web page, not a file"))
+        show()
+        compose.onNodeWithText("its file couldn't be stored: leads to a web page, not a file", substring = true).assertIsDisplayed()
     }
 }

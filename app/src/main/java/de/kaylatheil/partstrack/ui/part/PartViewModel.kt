@@ -23,12 +23,14 @@ import androidx.lifecycle.viewModelScope
 import de.kaylatheil.partstrack.ApiFactory
 import de.kaylatheil.partstrack.data.api.Attachment
 import de.kaylatheil.partstrack.data.api.AttachmentDownloader
+import de.kaylatheil.partstrack.data.api.AttachmentKind
 import de.kaylatheil.partstrack.data.api.DownloadedFile
 import de.kaylatheil.partstrack.data.api.Location
 import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.PartstrackApi
 import de.kaylatheil.partstrack.data.api.PartstrackException
 import de.kaylatheil.partstrack.data.api.StockChange
+import de.kaylatheil.partstrack.data.api.Upload
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.ui.common.LoadError
 import de.kaylatheil.partstrack.ui.common.toLoadError
@@ -53,6 +55,15 @@ sealed interface OpenRequest {
     /** A downloaded file, for whatever app opens its type; [fallbackUrl] if none does. */
     data class File(val file: DownloadedFile, val fallbackUrl: String) : OpenRequest
 }
+
+/** An upload on its way, or one that failed and can be tried again. */
+data class UploadProgress(val name: String, val sent: Long, val total: Long, val error: LoadError? = null) {
+    /** How much is sent, from 0 to 1; null if the size isn't known. */
+    val fraction: Float? get() = if (total > 0) (sent.toFloat() / total).coerceIn(0f, 1f) else null
+}
+
+/** A link was added, but the server couldn't store a copy of its file: [reason] is the server's. */
+data class LinkNotStored(val reason: String)
 
 /** An open stock dialog. */
 sealed interface StockDialog {
@@ -92,6 +103,17 @@ data class PartUiState(
     val deleting: Boolean = false,
     /** The part is deleted: the screen should close. */
     val deleted: Boolean = false,
+    val upload: UploadProgress? = null,
+    val linkDialog: Boolean = false,
+    val linkSaving: Boolean = false,
+    /** Adding the link failed; the dialog stays open with its input. */
+    val linkError: LoadError? = null,
+    val linkNotStored: LinkNotStored? = null,
+    /** Asking whether to remove this attachment. */
+    val removing: Attachment? = null,
+    val removeBusy: Boolean = false,
+    /** The link whose file the server is downloading to store a copy. */
+    val storingId: Int? = null,
 ) {
     /** What to show at [location]: the server's amount with the changes still on their way. */
     fun shownQuantity(location: String, quantity: Int): Int = quantity + (pending[location] ?: 0)
@@ -116,6 +138,12 @@ class PartViewModel(
     private var downloadJob: Job? = null
     private var historyJob: Job? = null
     private var locationsJob: Job? = null
+    private var uploadJob: Job? = null
+
+    /** What is being uploaded, kept to try again; [cleanup] deletes a photo taken for it. */
+    private class PendingUpload(val upload: Upload, val kind: AttachmentKind?, val cleanup: () -> Unit)
+
+    private var pending: PendingUpload? = null
 
     /** Changes go to the server one at a time, so their answers arrive in order. */
     private val changeLock = Mutex()
@@ -292,6 +320,148 @@ class PartViewModel(
                 } catch (e: PartstrackException) {
                     _state.update { it.copy(deleting = false, confirmDelete = false, changeError = e.toLoadError()) }
                 }
+            }
+        }
+    }
+
+    // -- adding and removing attachments -------------------------------------
+
+    /**
+     * Uploads a file (one at a time) with progress. [cleanup] runs when it is
+     * done with: after the upload, or when it is cancelled or given up.
+     */
+    fun upload(upload: Upload, kind: AttachmentKind?, cleanup: () -> Unit = {}) {
+        if (!_state.value.canWrite || pending != null) {
+            cleanup()
+            return
+        }
+        pending = PendingUpload(upload, kind, cleanup)
+        startUpload()
+    }
+
+    private fun startUpload() {
+        val upload = pending ?: return
+        val api = api ?: return
+        _state.update { it.copy(upload = UploadProgress(upload.upload.fileName, 0, upload.upload.length)) }
+        uploadJob = viewModelScope.launch {
+            // A load running meanwhile may have read the part without the new attachment.
+            changeGeneration++
+            try {
+                val attachment = api.uploadAttachment(partId, upload.upload, upload.kind) { sent, total ->
+                    // On a network thread; after a cancel there is nothing to update.
+                    _state.update { state -> state.upload?.let { state.copy(upload = it.copy(sent = sent, total = total)) } ?: state }
+                }
+                endUpload()
+                _state.update { it.copy(upload = null, part = it.part?.withAttachment(attachment)) }
+            } catch (e: PartstrackException) {
+                _state.update { it.copy(upload = it.upload?.copy(error = e.toLoadError())) }
+            } finally {
+                changeGeneration++
+            }
+        }
+    }
+
+    fun retryUpload() {
+        if (_state.value.upload?.error != null) startUpload()
+    }
+
+    /** Stops an upload on its way, or gives up one that failed. */
+    fun cancelUpload() {
+        uploadJob?.cancel()
+        endUpload()
+        _state.update { it.copy(upload = null) }
+    }
+
+    private fun endUpload() {
+        pending?.cleanup?.invoke()
+        pending = null
+    }
+
+    override fun onCleared() {
+        // Leaving the part stops its upload; a photo taken for it isn't kept.
+        endUpload()
+    }
+
+    fun showLinkDialog() {
+        if (_state.value.canWrite) _state.update { it.copy(linkDialog = true, linkError = null) }
+    }
+
+    fun dismissLinkDialog() {
+        _state.update { if (it.linkSaving) it else it.copy(linkDialog = false, linkError = null) }
+    }
+
+    /** Adds a link; with [download], the server stores a copy of the file it leads to. */
+    fun addLink(url: String, kind: AttachmentKind?, download: Boolean) {
+        val api = api ?: return
+        if (_state.value.linkSaving) return
+        _state.update { it.copy(linkSaving = true, linkError = null) }
+        viewModelScope.launch {
+            changeGeneration++
+            try {
+                val attachment = api.addLink(partId, url, kind, download)
+                _state.update {
+                    it.copy(
+                        linkSaving = false,
+                        linkDialog = false,
+                        part = it.part?.withAttachment(attachment),
+                        linkNotStored = attachment.downloadError?.let(::LinkNotStored),
+                    )
+                }
+            } catch (e: PartstrackException) {
+                _state.update { it.copy(linkSaving = false, linkError = e.toLoadError()) }
+            } finally {
+                changeGeneration++
+            }
+        }
+    }
+
+    fun onLinkNoticeShown() {
+        _state.update { it.copy(linkNotStored = null) }
+    }
+
+    /** Tries again to store a copy of the file a link leads to. */
+    fun storeCopy(attachment: Attachment) {
+        val api = api ?: return
+        if (!_state.value.canWrite || _state.value.storingId != null) return
+        _state.update { it.copy(storingId = attachment.id) }
+        viewModelScope.launch {
+            try {
+                val stored = api.downloadAttachment(partId, attachment.id)
+                _state.update { it.copy(storingId = null, part = it.part?.withAttachment(stored)) }
+            } catch (e: PartstrackException) {
+                _state.update { it.copy(storingId = null, changeError = e.toLoadError()) }
+            }
+        }
+    }
+
+    fun askRemove(attachment: Attachment) {
+        if (_state.value.canWrite) _state.update { it.copy(removing = attachment) }
+    }
+
+    fun dismissRemove() {
+        _state.update { if (it.removeBusy) it else it.copy(removing = null) }
+    }
+
+    fun remove() {
+        val api = api ?: return
+        val attachment = _state.value.removing ?: return
+        if (_state.value.removeBusy) return
+        _state.update { it.copy(removeBusy = true) }
+        viewModelScope.launch {
+            changeGeneration++
+            try {
+                api.removeAttachment(partId, attachment.id)
+                _state.update { state ->
+                    state.copy(
+                        removeBusy = false,
+                        removing = null,
+                        part = state.part?.let { part -> part.copy(attachments = part.attachments.filter { it.id != attachment.id }) },
+                    )
+                }
+            } catch (e: PartstrackException) {
+                _state.update { it.copy(removeBusy = false, removing = null, changeError = e.toLoadError()) }
+            } finally {
+                changeGeneration++
             }
         }
     }

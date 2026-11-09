@@ -210,4 +210,32 @@
     <string name="scan_token">Scan the token\'s QR code</string>
     <string name="scan_token_prompt">Point the camera at the QR code that \'partstrack token add\' shows.</string>
     <string name="scan_not_a_token">That QR code isn\'t an API token. \'partstrack token add\' shows one when it creates a token.</string>
+
+    <!-- Attachments -->
+    <string name="section_attachments">Pictures and files</string>
+    <string name="take_photo">Take photo</string>
+    <string name="choose_file">Choose file</string>
+    <string name="add_link">Add link</string>
+    <string name="add">Add</string>
+    <string name="remove">Remove</string>
+    <string name="give_up">Give up</string>
+    <string name="photo_no_camera">Taking photos needs the camera. Allow it in the app\'s settings.</string>
+    <string name="uploading">Uploading %1$s</string>
+    <string name="upload_failed">%1$s couldn\'t be uploaded.</string>
+    <string name="upload_progress">%1$s of %2$s MB</string>
+    <string name="attachment_menu">More for %1$s</string>
+    <string name="store_copy">Store a copy</string>
+    <string name="remove_attachment">Remove…</string>
+    <string name="remove_attachment_title">Remove %1$s?</string>
+    <string name="remove_stored_text">The file is deleted from the server.</string>
+    <string name="remove_link_text">The link is removed from the part.</string>
+    <string name="field_link">Link</string>
+    <string name="link_help">http://, https:// or ftp://</string>
+    <string name="problem_link">Enter a whole link, starting with http://, https:// or ftp://.</string>
+    <string name="field_kind">What it is</string>
+    <string name="kind_auto">By name</string>
+    <string name="kind_picture">Picture</string>
+    <string name="kind_other">Other</string>
+    <string name="store_copy_help">Store a copy of the file it leads to on the server</string>
+    <string name="link_not_stored">The link was added, but its file couldn\'t be stored: %1$s</string>
 </resources>

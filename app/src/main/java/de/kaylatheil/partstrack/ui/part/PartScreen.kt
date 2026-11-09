@@ -47,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -105,6 +106,7 @@ import de.kaylatheil.partstrack.ui.common.ErrorView
 import de.kaylatheil.partstrack.ui.common.LoadError
 import de.kaylatheil.partstrack.ui.common.Remove
 import de.kaylatheil.partstrack.ui.common.message
+import de.kaylatheil.partstrack.ui.scan.openAppSettings
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -129,6 +131,17 @@ fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () 
     LaunchedEffect(state.deleted) {
         if (state.deleted) onBack()
     }
+    val cameraMessage = stringResource(R.string.photo_no_camera)
+    val appSettings = stringResource(R.string.app_settings)
+    val pickers = rememberAttachmentPickers(
+        onUpload = viewModel::upload,
+        onCameraRefused = {
+            scope.launch {
+                val result = snackbar.showSnackbar(cameraMessage, actionLabel = appSettings, withDismissAction = true)
+                if (result == SnackbarResult.ActionPerformed) openAppSettings(context)
+            }
+        },
+    )
     PartContent(
         state = state,
         snackbar = snackbar,
@@ -148,6 +161,18 @@ fun PartScreen(viewModel: PartViewModel, onBack: () -> Unit, onOpenSettings: () 
             onAskDelete = viewModel::askDelete,
             onDismissDelete = viewModel::dismissDelete,
             onDelete = viewModel::delete,
+            onTakePhoto = pickers.takePhoto,
+            onChooseFile = pickers.chooseFile,
+            onCancelUpload = viewModel::cancelUpload,
+            onRetryUpload = viewModel::retryUpload,
+            onShowLinkDialog = viewModel::showLinkDialog,
+            onDismissLinkDialog = viewModel::dismissLinkDialog,
+            onAddLink = viewModel::addLink,
+            onLinkNoticeShown = viewModel::onLinkNoticeShown,
+            onStoreCopy = viewModel::storeCopy,
+            onAskRemove = viewModel::askRemove,
+            onDismissRemove = viewModel::dismissRemove,
+            onRemove = viewModel::remove,
         ),
     )
 }
@@ -193,6 +218,18 @@ class PartActions(
     val onAskDelete: () -> Unit = {},
     val onDismissDelete: () -> Unit = {},
     val onDelete: () -> Unit = {},
+    val onTakePhoto: () -> Unit = {},
+    val onChooseFile: () -> Unit = {},
+    val onCancelUpload: () -> Unit = {},
+    val onRetryUpload: () -> Unit = {},
+    val onShowLinkDialog: () -> Unit = {},
+    val onDismissLinkDialog: () -> Unit = {},
+    val onAddLink: (url: String, kind: AttachmentKind?, download: Boolean) -> Unit = { _, _, _ -> },
+    val onLinkNoticeShown: () -> Unit = {},
+    val onStoreCopy: (Attachment) -> Unit = {},
+    val onAskRemove: (Attachment) -> Unit = {},
+    val onDismissRemove: () -> Unit = {},
+    val onRemove: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for UI tests. */
@@ -209,6 +246,13 @@ fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHost
             val result = snackbar.showSnackbar(passingMessage, actionLabel = settingsLabel, withDismissAction = settingsLabel != null)
             actions.onErrorShown()
             if (result == SnackbarResult.ActionPerformed) actions.onOpenSettings()
+        }
+    }
+    val notStored = state.linkNotStored?.let { stringResource(R.string.link_not_stored, it.reason) }
+    LaunchedEffect(notStored) {
+        if (notStored != null) {
+            snackbar.showSnackbar(notStored, withDismissAction = true)
+            actions.onLinkNoticeShown()
         }
     }
     var fullSize by remember { mutableStateOf<Attachment?>(null) }
@@ -247,7 +291,21 @@ fun PartContent(state: PartUiState, actions: PartActions, snackbar: SnackbarHost
             }
         }
     }
-    fullSize?.let { FullSizePicture(it, onClose = { fullSize = null }) }
+    fullSize?.let { picture ->
+        FullSizePicture(
+            picture,
+            onClose = { fullSize = null },
+            onRemove = if (state.canWrite) {
+                { fullSize = null; actions.onAskRemove(picture) }
+            } else {
+                null
+            },
+        )
+    }
+    if (state.linkDialog) {
+        LinkDialog(state.linkSaving, state.linkError, actions.onAddLink, actions.onDismissLinkDialog, actions.onOpenSettings)
+    }
+    state.removing?.let { RemoveAttachmentDialog(it, state.removeBusy, actions.onRemove, actions.onDismissRemove) }
     if (part != null) StockDialogs(part, state, actions)
     if (part != null && state.confirmDelete) DeleteDialog(part, state.deleting, actions)
 }
@@ -368,7 +426,27 @@ private fun PartDetails(part: Part, state: PartUiState, actions: PartActions, on
         if (files.isNotEmpty()) {
             section(R.string.section_files)
             items(files, key = { "file " + it.id }) { file ->
-                FileRow(file, downloading = state.downloadingId == file.id, onOpen = { actions.onOpenAttachment(file) })
+                FileRow(
+                    file,
+                    busy = state.downloadingId == file.id || state.storingId == file.id,
+                    onOpen = { actions.onOpenAttachment(file) },
+                    menu = if (state.canWrite) {
+                        { AttachmentMenu(file, onStoreCopy = { actions.onStoreCopy(file) }, onRemove = { actions.onAskRemove(file) }) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
+
+        if (state.canWrite) {
+            if (pictures.isEmpty() && files.isEmpty()) section(R.string.section_attachments)
+            state.upload?.let { upload ->
+                item(key = "upload") { UploadCard(upload, actions.onCancelUpload, actions.onRetryUpload) }
+            }
+            item(key = "add attachment") {
+                // One upload at a time; a link can be added meanwhile.
+                AttachmentButtons(state.upload == null, actions.onTakePhoto, actions.onChooseFile, actions.onShowLinkDialog)
             }
         }
 
@@ -543,7 +621,7 @@ private fun Pictures(pictures: List<Attachment>, onShow: (Attachment) -> Unit) {
 }
 
 @Composable
-private fun FileRow(file: Attachment, downloading: Boolean, onOpen: () -> Unit) {
+private fun FileRow(file: Attachment, busy: Boolean, onOpen: () -> Unit, menu: (@Composable () -> Unit)?) {
     val datasheet = file.kind == AttachmentKind.DATASHEET.value
     val kind = stringResource(
         when {
@@ -557,12 +635,12 @@ private fun FileRow(file: Attachment, downloading: Boolean, onOpen: () -> Unit) 
         // A link to a page has no file name; then its address names it.
         headlineContent = { Text(file.name.ifBlank { file.url }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(kind) },
-        trailingContent = if (downloading) {
-            { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
-        } else {
-            null
+        trailingContent = when {
+            busy -> { { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) } }
+            menu != null -> menu
+            else -> null
         },
-        modifier = Modifier.clickable(enabled = !downloading, onClick = onOpen),
+        modifier = Modifier.clickable(enabled = !busy, onClick = onOpen),
     )
 }
 
@@ -593,9 +671,9 @@ private fun HistoryRow(change: StockChange) {
     )
 }
 
-/** A picture over the whole screen; pinch to zoom, tap the cross to close. */
+/** A picture over the whole screen; pinch to zoom, tap the cross to close. [onRemove]: with a token. */
 @Composable
-private fun FullSizePicture(picture: Attachment, onClose: () -> Unit) {
+private fun FullSizePicture(picture: Attachment, onClose: () -> Unit, onRemove: (() -> Unit)?) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         var scale by remember { mutableFloatStateOf(1f) }
         var offsetX by remember { mutableFloatStateOf(0f) }
@@ -617,6 +695,11 @@ private fun FullSizePicture(picture: Attachment, onClose: () -> Unit) {
             )
             IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close), tint = Color.White)
+            }
+            if (onRemove != null) {
+                IconButton(onClick = onRemove, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_attachment), tint = Color.White)
+                }
             }
         }
     }

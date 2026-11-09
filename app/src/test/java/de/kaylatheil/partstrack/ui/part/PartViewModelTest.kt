@@ -22,6 +22,7 @@ import de.kaylatheil.partstrack.MainDispatcherRule
 import de.kaylatheil.partstrack.data.api.ApiException
 import de.kaylatheil.partstrack.data.api.Attachment
 import de.kaylatheil.partstrack.data.api.AttachmentDownloader
+import de.kaylatheil.partstrack.data.api.AttachmentKind
 import de.kaylatheil.partstrack.data.api.FakePartstrackApi
 import de.kaylatheil.partstrack.data.api.HttpPartstrackApi
 import de.kaylatheil.partstrack.data.api.HttpPartstrackApiTest
@@ -31,6 +32,7 @@ import de.kaylatheil.partstrack.data.api.Part
 import de.kaylatheil.partstrack.data.api.PartstrackJson
 import de.kaylatheil.partstrack.data.api.StockChange
 import de.kaylatheil.partstrack.data.api.StockEntry
+import de.kaylatheil.partstrack.data.api.Upload
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.data.settings.ThemeChoice
 import de.kaylatheil.partstrack.ui.common.LoadError
@@ -46,6 +48,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -83,6 +86,7 @@ class PartViewModelTest {
     /** Every change waits for this before it is answered. */
     private var changeGate = CompletableDeferred(Unit)
     private var changeFailure: Exception? = null
+    private var linkDownloadError: String? = null
     private val locations: List<Location> =
         PartstrackJson.decodeFromString(ListSerializer(Location.serializer()), HttpPartstrackApiTest.fixture("locations"))
 
@@ -119,6 +123,40 @@ class PartViewModelTest {
 
         override suspend fun setStock(partId: Int, location: String, quantity: Int, note: String): Part =
             changed("set $location $quantity $note".trim()) { it + (location to quantity) }
+
+        override suspend fun uploadAttachment(
+            partId: Int,
+            upload: Upload,
+            kind: AttachmentKind?,
+            onProgress: (sent: Long, total: Long) -> Unit,
+        ): Attachment {
+            changes += "upload ${upload.fileName} $kind"
+            onProgress(upload.length / 2, upload.length)
+            changeGate.await()
+            changeFailure?.let { throw it }
+            onProgress(upload.length, upload.length)
+            return Attachment(50, "image", upload.fileName, true, "http://parts.lan:8080/attachments/50", null, "")
+        }
+
+        override suspend fun addLink(partId: Int, url: String, kind: AttachmentKind?, download: Boolean): Attachment {
+            changes += "link $url $kind $download"
+            changeGate.await()
+            changeFailure?.let { throw it }
+            return Attachment(51, "datasheet", "a.pdf", false, url, null, "", downloadError = linkDownloadError)
+        }
+
+        override suspend fun downloadAttachment(partId: Int, attachmentId: Int): Attachment {
+            changes += "download $attachmentId"
+            changeGate.await()
+            changeFailure?.let { throw it }
+            return part.attachments.single { it.id == attachmentId }.copy(stored = true, url = "http://parts.lan:8080/attachments/$attachmentId")
+        }
+
+        override suspend fun removeAttachment(partId: Int, attachmentId: Int) {
+            changes += "remove $attachmentId"
+            changeGate.await()
+            changeFailure?.let { throw it }
+        }
 
         override suspend fun deletePart(id: Int) {
             assertEquals(1, id)
@@ -452,5 +490,190 @@ class PartViewModelTest {
         runCurrent()
         assertEquals(listOf("adjust Shelf 1", "delete"), changes)
         assertTrue(viewModel.state.value.deleted)
+    }
+
+    // -- attachments ------------------------------------------------------------
+
+    private fun photo(cleaned: MutableList<String>) = Triple(
+        Upload("photo.jpg", "image/jpeg", 1000) { Buffer().write(ByteArray(1000)) },
+        AttachmentKind.IMAGE,
+        { cleaned += "photo.jpg" },
+    )
+
+    @Test
+    fun uploadAPhoto() = runTest {
+        withToken()
+        changeGate = CompletableDeferred()
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        val progress = viewModel.state.value.upload!!
+        assertEquals("photo.jpg", progress.name)
+        assertEquals(0.5f, progress.fraction!!, 0.001f)
+        assertTrue(cleaned.isEmpty()) // kept while it may be needed again
+
+        changeGate.complete(Unit)
+        runCurrent()
+        val state = viewModel.state.value
+        assertNull(state.upload)
+        assertEquals(50, state.part!!.attachments.last().id)
+        assertEquals(listOf("photo.jpg"), cleaned)
+        assertEquals(listOf("upload photo.jpg IMAGE"), changes)
+    }
+
+    @Test
+    fun aFailedUploadCanBeTriedAgain() = runTest {
+        withToken()
+        changeFailure = NetworkException(ConnectException("gone"))
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        assertEquals(LoadError.Unreachable("gone"), viewModel.state.value.upload!!.error)
+        assertTrue(cleaned.isEmpty())
+
+        changeFailure = null
+        viewModel.retryUpload()
+        assertNull(viewModel.state.value.upload)
+        assertEquals(listOf("upload photo.jpg IMAGE", "upload photo.jpg IMAGE"), changes)
+        assertEquals(listOf("photo.jpg"), cleaned)
+    }
+
+    @Test
+    fun giveUpAFailedUpload() = runTest {
+        withToken()
+        changeFailure = ApiException(413, "the request is larger than 100 MB")
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        viewModel.cancelUpload()
+        assertNull(viewModel.state.value.upload)
+        assertEquals(listOf("photo.jpg"), cleaned)
+    }
+
+    @Test
+    fun cancelAnUploadOnItsWay() = runTest {
+        withToken()
+        changeGate = CompletableDeferred()
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        viewModel.cancelUpload()
+        changeGate.complete(Unit)
+        runCurrent()
+        val state = viewModel.state.value
+        assertNull(state.upload)
+        assertEquals(part.attachments, state.part!!.attachments) // nothing added
+        assertEquals(listOf("photo.jpg"), cleaned)
+    }
+
+    @Test
+    fun oneUploadAtATime() = runTest {
+        withToken()
+        changeGate = CompletableDeferred()
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        viewModel.upload(Upload("second.pdf", null, 10) { Buffer() }, null) { cleaned += "second.pdf" }
+        assertEquals(listOf("second.pdf"), cleaned) // the second isn't kept
+        assertEquals(1, changes.size)
+    }
+
+    @Test
+    fun uploadsNeedAToken() = runTest {
+        val viewModel = newViewModel()
+        val cleaned = mutableListOf<String>()
+        val (upload, kind, cleanup) = photo(cleaned)
+        viewModel.upload(upload, kind, cleanup)
+        assertTrue(changes.isEmpty())
+        assertEquals(listOf("photo.jpg"), cleaned)
+    }
+
+    @Test
+    fun addALink() = runTest {
+        withToken()
+        val viewModel = newViewModel()
+        viewModel.showLinkDialog()
+        assertTrue(viewModel.state.value.linkDialog)
+        viewModel.addLink("https://www.example.com/a.pdf", AttachmentKind.DATASHEET, true)
+        val state = viewModel.state.value
+        assertFalse(state.linkDialog)
+        assertNull(state.linkNotStored)
+        assertEquals(51, state.part!!.attachments.last().id)
+        assertEquals(listOf("link https://www.example.com/a.pdf DATASHEET true"), changes)
+    }
+
+    @Test
+    fun aLinkWhoseFileCouldNotBeStored() = runTest {
+        withToken()
+        linkDownloadError = "https://www.example.com/ leads to a web page, not a file"
+        val viewModel = newViewModel()
+        viewModel.showLinkDialog()
+        viewModel.addLink("https://www.example.com/", null, true)
+        val state = viewModel.state.value
+        assertFalse(state.linkDialog) // the link is there all the same
+        assertEquals(LinkNotStored("https://www.example.com/ leads to a web page, not a file"), state.linkNotStored)
+        viewModel.onLinkNoticeShown()
+        assertNull(viewModel.state.value.linkNotStored)
+    }
+
+    @Test
+    fun aRefusedLinkKeepsTheDialog() = runTest {
+        withToken()
+        changeFailure = ApiException(401, "unknown or revoked API token")
+        val viewModel = newViewModel()
+        viewModel.showLinkDialog()
+        viewModel.addLink("https://www.example.com/a.pdf", null, false)
+        val state = viewModel.state.value
+        assertTrue(state.linkDialog)
+        assertFalse(state.linkSaving)
+        assertEquals(LoadError.Server(401, "unknown or revoked API token"), state.linkError)
+    }
+
+    @Test
+    fun storeACopyOfALink() = runTest {
+        withToken()
+        val viewModel = newViewModel()
+        val link = part.attachments.single { !it.stored }
+        viewModel.storeCopy(link)
+        assertNull(viewModel.state.value.storingId)
+        assertTrue(viewModel.state.value.part!!.attachments.single { it.id == link.id }.stored)
+    }
+
+    @Test
+    fun storingACopyFails() = runTest {
+        withToken()
+        changeFailure = ApiException(400, "https://www.example.com/rc0603.pdf leads to a web page, not a file")
+        val viewModel = newViewModel()
+        viewModel.storeCopy(part.attachments.single { !it.stored })
+        assertEquals(
+            LoadError.Server(400, "https://www.example.com/rc0603.pdf leads to a web page, not a file"),
+            viewModel.state.value.changeError,
+        )
+    }
+
+    @Test
+    fun removeAnAttachment() = runTest {
+        withToken()
+        val viewModel = newViewModel()
+        val photo = part.attachments.single { it.isImage }
+        viewModel.askRemove(photo)
+        assertEquals(photo, viewModel.state.value.removing)
+        viewModel.remove()
+        val state = viewModel.state.value
+        assertNull(state.removing)
+        assertTrue(state.part!!.attachments.none { it.id == photo.id })
+        assertEquals(listOf("remove ${photo.id}"), changes)
+    }
+
+    @Test
+    fun removingNeedsAToken() = runTest {
+        val viewModel = newViewModel()
+        viewModel.askRemove(part.attachments.first())
+        assertNull(viewModel.state.value.removing)
     }
 }
