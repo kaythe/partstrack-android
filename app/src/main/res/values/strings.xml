@@ -175,4 +175,26 @@
     <string name="problem_attribute_name_repeated">This name is already above.</string>
     <string name="problem_location_missing">Enter where they are.</string>
     <string name="problem_quantity_missing">Enter how many are there.</string>
+
+    <!-- Locations -->
+    <string name="locations_title">Locations</string>
+    <string name="no_locations_yet">No locations yet. They are also made when stock is put somewhere new.</string>
+    <plurals name="location_parts">
+        <item quantity="one">%1$d part</item>
+        <item quantity="other">%1$d parts</item>
+    </plurals>
+    <string name="location_menu">More for %1$s</string>
+    <string name="collapse_location">Hide what is in %1$s</string>
+    <string name="expand_location">Show what is in %1$s</string>
+    <string name="add_location">Add location</string>
+    <string name="add_location_inside">Add a location inside…</string>
+    <string name="edit_location">Edit…</string>
+    <string name="edit_location_title">Edit location</string>
+    <string name="delete_location">Delete…</string>
+    <string name="delete_location_title">Delete %1$s?</string>
+    <string name="delete_location_text">This deletes %1$s. Only empty locations can be deleted: no parts may be stored there, and no locations may be inside it.</string>
+    <string name="field_parent">Inside (empty: at the top)</string>
+    <string name="parent_help">Moving a location takes everything in it along.</string>
+    <string name="problem_name_slash">Names can\'t contain /, which separates the names in a path.</string>
+    <string name="problem_parent_inside">A location can\'t be moved into itself.</string>
 </resources>

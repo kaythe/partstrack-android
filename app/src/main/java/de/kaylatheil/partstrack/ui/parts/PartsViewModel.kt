@@ -122,6 +122,9 @@ class PartsViewModel(
 
     fun clearFilters() = changeFilter { PartsFilter() }
 
+    /** Everything at [location] (a full path) and in its sublocations, whatever was searched before. */
+    fun showLocation(location: String) = changeFilter { PartsFilter(location = location) }
+
     /** Pull to refresh: the list and the filter choices. */
     fun refresh() {
         _state.update { it.copy(refreshing = true) }

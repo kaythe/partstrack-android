@@ -55,6 +55,7 @@ class PartsContentTest {
                     PartsActions(
                         onQueryChange = { events += "query $it" },
                         onAddPart = { events += "add part" },
+                        onOpenLocations = { events += "locations" },
                         onTagChange = { events += "tag $it" },
                         onLocationChange = { events += "location $it" },
                         onLowOnlyChange = { events += "low $it" },
@@ -191,5 +192,13 @@ class PartsContentTest {
         show()
         compose.onNodeWithTag("add_part").performClick()
         assertEquals(listOf("add part"), events)
+    }
+
+    @Test
+    fun openLocations() {
+        state = PartsUiState(loaded = true, parts = parts)
+        show()
+        compose.onNodeWithTag("open_locations").performClick()
+        assertEquals(listOf("locations"), events)
     }
 }

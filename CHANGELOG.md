@@ -46,3 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The form checks the input before sending and keeps it when the server
   refuses, and asks before throwing input away. "Delete…" in the part's
   menu deletes it after asking.
+- Locations: the pin on the parts list shows all locations as a tree, with
+  the parts and pieces stored in each; the arrow next to a location hides or
+  shows what is inside it. Tapping one shows everything stored
+  there and in its sublocations. With a token, locations can be added (at
+  the top or inside another), renamed, described, moved with everything in
+  them, and deleted when empty; the server's reason shows when it refuses.

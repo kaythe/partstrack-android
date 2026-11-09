@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -83,7 +84,9 @@ fun LocationField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                expanded = true
+                // Only while something is typed: the whole list would cover the rest
+                // of a dialog, its buttons too. Tapping the field still shows it.
+                expanded = it.isNotBlank()
             },
             label = { Text(label) },
             singleLine = true,
@@ -103,6 +106,7 @@ fun LocationField(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled)
+                .onFocusChanged { if (!it.isFocused) expanded = false }
                 .testTag(tag),
         )
         ExposedDropdownMenu(expanded = expanded && enabled && matches.isNotEmpty(), onDismissRequest = { expanded = false }) {

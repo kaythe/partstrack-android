@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 
 /**
@@ -94,6 +95,8 @@ fun SuggestField(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled)
+                // Moving on to another field closes the suggestions.
+                .onFocusChanged { if (!it.isFocused) expanded = false }
                 .testTag(tag),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { expanded = false }) {

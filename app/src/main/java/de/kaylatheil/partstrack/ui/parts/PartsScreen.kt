@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -87,7 +88,13 @@ import de.kaylatheil.partstrack.ui.common.message
 import de.kaylatheil.partstrack.ui.theme.PartstrackTheme
 
 @Composable
-fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPart: (Int) -> Unit, onAddPart: () -> Unit) {
+fun PartsScreen(
+    viewModel: PartsViewModel,
+    onOpenSettings: () -> Unit,
+    onOpenPart: (Int) -> Unit,
+    onAddPart: () -> Unit,
+    onOpenLocations: () -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
@@ -108,6 +115,7 @@ fun PartsScreen(viewModel: PartsViewModel, onOpenSettings: () -> Unit, onOpenPar
             onOpenSettings = onOpenSettings,
             onOpenPart = onOpenPart,
             onAddPart = onAddPart,
+            onOpenLocations = onOpenLocations,
         ),
     )
 }
@@ -126,6 +134,7 @@ class PartsActions(
     val onOpenSettings: () -> Unit = {},
     val onOpenPart: (Int) -> Unit = {},
     val onAddPart: () -> Unit = {},
+    val onOpenLocations: () -> Unit = {},
 )
 
 /** The screen without its ViewModel, for previews and UI tests. */
@@ -146,6 +155,9 @@ fun PartsContent(state: PartsUiState, actions: PartsActions) {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = actions.onOpenLocations, modifier = Modifier.testTag("open_locations")) {
+                        Icon(Icons.Filled.Place, contentDescription = stringResource(R.string.locations_title))
+                    }
                     IconButton(onClick = actions.onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
                     }

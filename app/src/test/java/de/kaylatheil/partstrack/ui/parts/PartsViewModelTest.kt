@@ -121,6 +121,20 @@ class PartsViewModelTest {
     }
 
     @Test
+    fun showALocation() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onQueryChange("resistor")
+        viewModel.onTagChange("smd")
+        searches.clear()
+        viewModel.showLocation("Shelf")
+        // Everything there: the search and other filters from before don't apply.
+        assertEquals(listOf(Search("", null, "Shelf", null, false)), searches)
+        assertEquals(PartsFilter(location = "Shelf"), viewModel.state.value.filter)
+        advanceTimeBy(PartsViewModel.SEARCH_DELAY_MS * 2)
+        assertEquals(1, searches.size) // nor does the search typed just before
+    }
+
+    @Test
     fun aFilterChangeDoesNotWaitForTyping() = runTest {
         val viewModel = newViewModel()
         searches.clear()

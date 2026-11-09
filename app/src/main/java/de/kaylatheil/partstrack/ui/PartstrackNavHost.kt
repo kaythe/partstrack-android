@@ -19,7 +19,10 @@
 package de.kaylatheil.partstrack.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +32,8 @@ import de.kaylatheil.partstrack.AppContainer
 import de.kaylatheil.partstrack.data.settings.Settings
 import de.kaylatheil.partstrack.ui.edit.EditPartScreen
 import de.kaylatheil.partstrack.ui.edit.EditPartViewModel
+import de.kaylatheil.partstrack.ui.locations.LocationsScreen
+import de.kaylatheil.partstrack.ui.locations.LocationsViewModel
 import de.kaylatheil.partstrack.ui.part.PartScreen
 import de.kaylatheil.partstrack.ui.part.PartViewModel
 import de.kaylatheil.partstrack.ui.parts.PartsScreen
@@ -45,6 +50,12 @@ data class PartRoute(val id: Int)
 
 @Serializable
 object AddPartRoute
+
+@Serializable
+object LocationsRoute
+
+/** Where the locations screen leaves the location to filter the parts list by. */
+private const val CHOSEN_LOCATION = "chosen_location"
 
 @Serializable
 data class EditPartRoute(val id: Int)
@@ -74,12 +85,33 @@ fun PartstrackNavHost(container: AppContainer, settings: Settings) {
                 onBack = { navController.popBackStack() },
             )
         }
-        composable<PartsRoute> {
+        composable<PartsRoute> { entry ->
+            val partsViewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) }
+            // A location chosen on the locations screen filters the list.
+            val chosen by entry.savedStateHandle.getStateFlow<String?>(CHOSEN_LOCATION, null).collectAsStateWithLifecycle()
+            LaunchedEffect(chosen) {
+                chosen?.let {
+                    partsViewModel.showLocation(it)
+                    entry.savedStateHandle[CHOSEN_LOCATION] = null
+                }
+            }
             PartsScreen(
-                viewModel = viewModel { PartsViewModel(container.settingsStore.settings, container.apiFactory) },
+                viewModel = partsViewModel,
                 onOpenSettings = { navController.navigate(SetupRoute()) },
                 onOpenPart = { navController.navigate(PartRoute(it)) },
                 onAddPart = { navController.navigate(AddPartRoute) },
+                onOpenLocations = { navController.navigate(LocationsRoute) },
+            )
+        }
+        composable<LocationsRoute> {
+            LocationsScreen(
+                viewModel = viewModel { LocationsViewModel(container.settingsStore.settings, container.apiFactory) },
+                onBack = { navController.popBackStack() },
+                onOpenLocation = { path ->
+                    navController.getBackStackEntry<PartsRoute>().savedStateHandle[CHOSEN_LOCATION] = path
+                    navController.popBackStack<PartsRoute>(inclusive = false)
+                },
+                onOpenSettings = { navController.navigate(SetupRoute()) },
             )
         }
         composable<PartRoute> { entry ->
